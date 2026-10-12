@@ -1,0 +1,39 @@
+# project.yaml — configuração do space (UAH-Orquestra: adaptação do UAH-lite).
+# Campos uah_lite/project/risk/runtime/integrations/policy são lidos por `python3 .uah/uah.py compile`.
+# Os demais (dono, creditos, servidores, autonomia...) são lidos pelos agentes e pelo diretrizes.
+uah_lite: "1"
+project:
+  id: "<id-sem-espacos>"
+  title: "<título>"
+  domains: []            # ex.: quimica-computacional, dft, artigo-teorico, software, sdd, literatura
+risk: medium             # low = só proibições | medium = plano aprovado antes de alterar (G1) | high = G1 + checkpoint (G4)
+runtime:
+  python: "python3"
+notes:                   # campos da orquestração (o uah.py só aceita extras dentro de notes)
+  dono: PC1                # PC1 (dono principal) | PC2 (outra pessoa autorizada)
+  maquina_mestre: pclinux  # máquina onde o trabalho principal acontece
+  prioridade: normal       # normal | alta (usado pelo diretrizes à noite e na fila dos servidores)
+  creditos:
+    perfil: economico
+    trava: 0.80
+    noite_pode_zerar: true # false se o projeto for o prioritário da noite e outro precisar de crédito
+  servidores:
+    usa: []                # ex.: [cluster-a, cluster-b]
+    cotas: {}              # ex.: {cluster_a_threads: 12}
+    so_leitura: false
+  dados_sensiveis: false   # true = nunca enviar às IAs gratuitas
+  git:
+    remoto: "<usuario>/<repo>"
+    versoes: [v1]
+  autonomia:
+    overrides: {}          # só ajusta a tabela de ~/MGE/pesquisa/diretrizes/AUTONOMIA_E_MODOS.md
+integrations: []         # workflow-digestion, publish-documents, calcboard, sci-figures, specboard
+policy:
+  immutable_paths: []    # nunca alterar (ex.: dados brutos, saídas de cálculo concluídas)
+  protected_paths: []    # alterar só com confirmação (ex.: manuscrito vigente)
+  bash_deny: []
+  bash_ask: []
+  settings_allow: []
+  settings_ask: []
+  settings_deny: []
+  grantable: []

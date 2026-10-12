@@ -1,0 +1,156 @@
+{
+  "layer": "H0",
+  "description": "Invariantes universais do UAH-lite. Valem para todo projeto e não podem ser removidas por camadas inferiores. [Fork PC do Mario 11/10/2026: push p/ mge-*, scp/rsync p/ clusters, curl p/ ntfy/groq tratados pelo guarda-global com exceções.]",
+  "immutable_paths": [
+    ".uah/**",
+    ".git/**"
+  ],
+  "protected_paths": [
+    "project.yaml",
+    ".claude/settings.json",
+    ".claude/settings.local.json"
+  ],
+  "bash_deny": [
+    {
+      "id": "H0-rm-root",
+      "pattern": "\\brm\\s+(-\\S+\\s+)*[\\\"']?(/\\*?|~/?\\*?|\\$HOME/?\\*?|\\$\\{HOME\\}/?\\*?|\\./?\\*?|\\.\\.)[\\\"']?(\\s|;|&|\\||$)",
+      "reason": "remoção recursiva da raiz ou da home"
+    },
+    {
+      "id": "H0-pipe-shell",
+      "pattern": "\\b(curl|wget)\\b[^|]*\\|\\s*(sudo\\s+)?((ba|z|da|k)?sh|python[0-9.]*|perl|ruby|node)\\b",
+      "reason": "executar script baixado da internet sem revisão"
+    },
+    {
+      "id": "H0-force-push",
+      "pattern": "\\bgit\\s+push(?=\\s|$).*(\\s(--force|-f)(\\s|$)|\\s\\+\\S+)",
+      "reason": "force push reescreve histórico remoto"
+    },
+    {
+      "id": "H0-disk",
+      "pattern": "\\bmkfs(\\.\\w+)?\\b|\\bdd\\b.*\\bof=/dev/",
+      "reason": "escrita direta em dispositivo de disco"
+    },
+    {
+      "id": "H0-repo-delete",
+      "pattern": "\\bgh\\s+repo\\s+delete\\b",
+      "reason": "apagar repositório remoto"
+    }
+  ],
+  "bash_ask": [
+    {
+      "id": "H0-approve",
+      "pattern": "\\buah\\.py\\s+(--root\\s+\\S+\\s+)?(approve\\b|task\\b.*\\s--grant\\b|integrations\\s+(enable|install)\\b|setup-env\\b.*--install\\b|checkpoint\\b.*--reset-attempts\\b)",
+      "reason": "aprovar o plano, conceder permissão, ativar/instalar integração ou ferramentas, ou desbloquear tarefa após o limite de tentativas é decisão humana",
+      "locked": true
+    },
+    {
+      "id": "H0-gh-publish",
+      "pattern": "\\bgh\\s+(pr\\s+(create|merge)|release|repo\\s+(create|edit))\\b",
+      "reason": "ação pública no GitHub"
+    },
+    {
+      "id": "H0-pkg-publish",
+      "pattern": "\\b(npm|pnpm|yarn)\\s+publish\\b|\\btwine\\s+upload\\b|\\bcargo\\s+publish\\b|\\bpoetry\\s+publish\\b|\\bgem\\s+push\\b",
+      "reason": "publicação de pacote"
+    },
+    {
+      "id": "H0-mail",
+      "pattern": "\\b(sendmail|mutt|mailx)\\b",
+      "reason": "envio de e-mail"
+    },
+    {
+      "id": "H0-sudo",
+      "pattern": "(?m)(^|[;&|(]\\s*|(\\b(xargs|exec|nohup|time|env)|-exec)\\s+)sudo\\b",
+      "reason": "elevação de privilégio"
+    },
+    {
+      "id": "H0-history-rewrite",
+      "pattern": "\\bgit\\s+reset\\s+--hard\\b|\\bgit\\s+clean\\s+-\\S*f|--force-with-lease",
+      "reason": "descarta trabalho local ou reescreve histórico"
+    }
+  ],
+  "settings": {
+    "allow": [],
+    "ask": [
+      "Bash(gh pr create:*)",
+      "Bash(gh pr merge:*)",
+      "Bash(gh release:*)",
+      "Bash(npm publish:*)",
+      "Bash(twine upload:*)",
+      "Bash(sudo:*)"
+    ],
+    "deny": [
+      "Read(./.env)",
+      "Read(./.env.*)",
+      "Read(./secrets/**)",
+      "Bash(gh repo delete:*)",
+      "Bash(git push --force:*)",
+      "Bash(git push -f:*)"
+    ]
+  },
+  "plan_gate": false,
+  "plan_gate_paths": [
+    "plan/**",
+    "state/**",
+    "project.yaml",
+    "CLAUDE.md",
+    "AGENTS.md",
+    ".omc/**",
+    "CONTINUIDADE.md",
+    "PENDENTES_CALC.md",
+    "_para_notebook/**",
+    "graphify-out/**",
+    "REGISTRO_CORRECOES.md"
+  ],
+  "readonly_bash": [
+    "ls",
+    "cat",
+    "head",
+    "tail",
+    "less",
+    "grep",
+    "rg",
+    "wc",
+    "pwd",
+    "echo",
+    "which",
+    "file",
+    "stat",
+    "tree",
+    "du",
+    "df",
+    "date",
+    "printenv",
+    "diff",
+    "sort",
+    "uniq",
+    "cut",
+    "basename",
+    "dirname",
+    "realpath",
+    "jq"
+  ],
+  "readonly_bash_subcommands": {
+    "git": [
+      "status",
+      "log",
+      "diff",
+      "show",
+      "branch",
+      "remote",
+      "rev-parse",
+      "ls-files",
+      "blame",
+      "describe"
+    ],
+    "find": [],
+    "python3": [
+      ".uah/uah.py"
+    ],
+    "python": [
+      ".uah/uah.py"
+    ]
+  },
+  "g4_checkpoint": "off"
+}

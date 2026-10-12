@@ -1,0 +1,12 @@
+#!/bin/bash
+# Capacidade do PC Linux para abrir IAs secundárias (Codex/opencode) — sem IA.
+# Saída: números + veredito OK / APERTADO / LOTADO. Uso: capacidade_pc
+export LC_ALL=C
+disp=$(awk '/MemAvailable/{printf "%.1f",$2/1048576}' /proc/meminfo)
+l1=$(cut -d' ' -f1 /proc/loadavg)
+nia=$(( $(pgrep -xc opencode) + $(ps -eo comm,args | awk '$1=="codex" && $0 !~ /app-server/' | wc -l) ))
+calc=$(ls ~/.calc_local/*.job 2>/dev/null | wc -l)
+echo "RAM livre: ${disp} GB de N | carga: ${l1} (8 threads) | sessoes codex/opencode abertas: ${nia} | jobs rodar_local: ${calc}"
+if awk -v r=$disp -v l=$l1 'BEGIN{exit !(r>=4 && l<=5)}'; then echo "VEREDITO: OK - pode usar Codex/opencode (feche ao terminar)"
+elif awk -v r=$disp -v l=$l1 'BEGIN{exit !(r>=2.5 && l<=6.5)}'; then echo "VEREDITO: APERTADO - use so 'opencode run'/'groq' pontual (nao abra sessao interativa)"
+else echo "VEREDITO: LOTADO - nao abra IA secundaria; avise o usuario para decidir"; fi

@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+# Modo do usuário: presente | ausente. Uso: modo            (mostra)
+#                                         modo presente|ausente   (troca, registra e avisa no celular)
+F=~/.claude/modo_mario; L=${DIRETRIZES_LOG:-$HOME/projetos/central/diretrizes.md}
+[ -z "$1" ] && { cat "$F" 2>/dev/null || echo presente; exit 0; }
+case "$1" in presente|ausente) ;; *) echo "use: modo presente|ausente"; exit 1;; esac
+old=$(cat "$F" 2>/dev/null); echo "$1" > "$F"
+echo "- $(date '+%d/%m %H:%M'): MODO $old → $1" >> "$L"
+command -v avisar >/dev/null && avisar "Modo: $1" "Modo trocado de ${old:-?} para $1. Se nao era isso, me diga." >/dev/null 2>&1
+echo "modo: $old -> $1"
