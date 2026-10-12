@@ -1,42 +1,46 @@
 # UAH-Orquestra
 
-**UAH-Orquestra é uma adaptação do [Universal Agent Harness (UAH)](https://github.com/fatioleg/Universal-Agent-Harness), criado pelo Prof. Valter Carvalho-Silva (repositório `fatioleg/Universal-Agent-Harness`).** O original define como configurar e fiscalizar *um* projeto com agentes de IA (Claude Code, Codex): permissões, aprovação de plano e estado retomável. Esta adaptação, mantida por Mario Envall, junta isso a uma **orquestração de vários projetos ao mesmo tempo**, com um space central, o terminal herdr, economia de créditos e trabalho contínuo.
+*[Versão em português](README.pt-BR.md)*
 
-O código do UAH-lite em `uah-lite/` é uma cópia do original na versão 0.9.0 (commit `d26b183`) com pequenas alterações descritas abaixo. A licença MIT original foi mantida.
+**UAH-Orquestra is an adaptation of the [Universal Agent Harness (UAH)](https://github.com/fatioleg/Universal-Agent-Harness), created by Prof. Valter Carvalho-Silva (repository `fatioleg/Universal-Agent-Harness`).** The original defines how to configure and supervise *one* project run by AI agents (Claude Code, Codex): permissions, plan approval and resumable state. This adaptation, maintained by Mario Envall, adds **orchestration of several projects at once**: a central coordinating agent, the herdr terminal multiplexer, credit budgeting and continuous (overnight) work.
 
-## O que vem do UAH original
-- `project.yaml` (configuração H2), `plan/approved.md` com **aprovação humana travada por hash** (gate G1) e `state/current.md`.
-- Proibições e confirmações **compiladas** em permissões e hooks do Claude Code (`uah.py compile`), com níveis de risco low, medium e high.
-- Níveis de autonomia L0–L5 por tipo de ação e princípios como preservar fontes, checagens determinísticas primeiro e revisão independente.
-- Catálogo de integrações: Workflow_Digestion, publish-documents, CalcBoard, sci-figures, specboard (todas do mesmo autor).
+The UAH-lite code in `uah-lite/` is a copy of the original at version 0.9.0 (commit `d26b183`), with the small changes listed below. The original MIT license is kept.
 
-## O que esta adaptação acrescenta
-| Peça | O que faz |
+## What comes from the original UAH
+- `project.yaml` (H2 configuration), `plan/approved.md` with **human approval locked by hash** (gate G1), and `state/current.md`.
+- Prohibitions and confirmations **compiled** into Claude Code permissions and hooks (`uah.py compile`), with low, medium and high risk levels.
+- Autonomy levels L0–L5 per type of action, and principles such as preserving sources, deterministic checks first and independent review.
+- Integration catalog: Workflow_Digestion, publish-documents, CalcBoard, sci-figures, specboard (all by the same author).
+
+## What this adaptation adds
+| Component | What it does |
 |---|---|
-| **Space central ("diretrizes")** | Um agente coordena os demais: recebe ordens do usuário, classifica como PERMANENTE ou PONTUAL, registra e repassa a todos via `herdr agent prompt`. Cada projeto continua com o seu UAH-lite. |
-| **Modo PRESENTE / AUSENTE** (`orquestra/bin/modo`) | Presente: plano aprovado antes de alterar, dúvidas na hora. Ausente (noite/fora): só executa o que já foi aprovado e as ações L3+; o resto fica para a manhã. A decisão é sempre do usuário. |
-| **Autonomia padronizada** (`orquestra/AUTONOMIA_E_MODOS.md`) | Uma tabela L0–L5 única para todos os projetos, ajustável por projeto. |
-| **Economia de créditos** | Escada grátis (opencode/groq/OpenRouter) → Codex → Claude. Trava em 80% do medidor de 5 h. À noite, sem projeto prioritário, pode zerar, porque um vigia sem IA retoma quando os créditos voltam (`orquestra/bin/retomar_apos_limite.sh`). |
-| **Guarda global** (`orquestra/hooks/guard.py`) | Hook PreToolUse válido para todos os projetos, com as proibições H0 do UAH, regras de servidores compartilhados (matar só por PID, nada de `rm -r` remoto) e exceções configuráveis para rotinas já autorizadas. Teste com `python3 guard.py --test`. |
-| **`project.yaml` estendido** | Campos de orquestração dentro de `notes:` (o `uah.py` só aceita extras ali): dono, máquina principal, prioridade, créditos, servidores e cotas, dados sensíveis, repositório git. |
-| **Versões git por etapa** (`orquestra/bin/git_v1.sh`) | Repositório local e commit/tag `v1` sem segredos e sem arquivos grandes (que ficam listados); depois `v2`… |
-| **Capacidade da máquina** (`orquestra/bin/capacidade_pc`) | Veredito OK / APERTADO / LOTADO antes de abrir IAs auxiliares. |
-| **Roteiro de montagem** (`docs/MONTAR_ARQUITETURA_CLAUDE.md`) | Guia em fases para um Claude montar a arquitetura do zero, pulando as fases já feitas. |
+| **Central agent ("diretrizes")** | One agent coordinates the others: it receives the user's instructions, classifies them as PERMANENT or ONE-OFF, logs them and relays them to every project via `herdr agent prompt`. Each project keeps its own UAH-lite. |
+| **PRESENT / AWAY mode** (`orquestra/bin/modo`) | Present: plans are approved before any change and questions are asked right away. Away (night/out): agents only run what was already approved plus L3+ actions; everything else waits for the morning. The decision always stays with the user. |
+| **Standardized autonomy** (`orquestra/AUTONOMIA_E_MODOS.md`) | A single L0–L5 table shared by all projects, adjustable per project. |
+| **Credit budgeting** | A cost ladder: free models (opencode/Groq/OpenRouter) → Codex → Claude. Work pauses at 80% of the 5-hour usage meter. At night, with no priority project, credits may run out, because a non-AI watcher resumes the agents when credits return (`orquestra/bin/retomar_apos_limite.sh`). |
+| **Global guard** (`orquestra/hooks/guard.py`) | A PreToolUse hook valid for every project: the UAH H0 prohibitions, rules for shared compute servers (kill only by PID, no remote `rm -r`) and configurable exceptions for already-authorized routines. Test with `python3 guard.py --test`. |
+| **Extended `project.yaml`** | Orchestration fields inside `notes:` (the only place `uah.py` accepts extra keys): owner, main machine, priority, credits, servers and quotas, sensitive data, git repository. |
+| **Git versions per stage** (`orquestra/bin/git_v1.sh`) | Local repository plus commit/tag `v1`, excluding secrets and large files (which are listed instead); then `v2`, and so on. |
+| **Machine capacity check** (`orquestra/bin/capacidade_pc`) | OK / TIGHT / FULL verdict before opening auxiliary AI sessions. |
+| **Setup guide** (`docs/MONTAR_ARQUITETURA_CLAUDE.md`) | A phased guide for a Claude agent to build the architecture from scratch, skipping phases already done. |
 
-## Alterações no UAH-lite (`uah-lite/skills/uah-init/profiles/h0.json`)
-- `git push`, `scp`/`rsync` remoto e `curl` com envio de dados deixaram de ser "ask" no H0. Passaram para o guarda global, que libera só os destinos autorizados (repositórios do próprio projeto, servidores do usuário, serviço de avisos) e pergunta nos demais.
-- `plan_gate_paths` ganhou `CONTINUIDADE.md`, `PENDENTES_CALC.md`, `_para_notebook/**`, `graphify-out/**` e `REGISTRO_CORRECOES.md`, para o estado e as notas poderem ser atualizados antes da aprovação.
+## Changes to UAH-lite (`uah-lite/skills/uah-init/profiles/h0.json`)
+- `git push`, remote `scp`/`rsync` and `curl` uploads are no longer "ask" in H0. They moved to the global guard, which allows only authorized destinations (the project's own repositories, the user's servers, the notification service) and asks for everything else.
+- `plan_gate_paths` now includes `CONTINUIDADE.md`, `PENDENTES_CALC.md`, `_para_notebook/**`, `graphify-out/**` and `REGISTRO_CORRECOES.md`, so state files and notes can be updated before a plan is approved.
 
-## Uso rápido
+## Quick start
 ```bash
-cp orquestra/templates/project.yaml <projeto>/      # preencha
-python3 uah-lite/skills/uah-init/uah.py --root <projeto> init --risk medium --project-id <id>
-python3 <projeto>/.uah/uah.py compile               # sem BLOQUEADO
-# escreva <projeto>/plan/approved.md (precisa de "## Escopo" e "pronto quando"/aceite)
-python3 <projeto>/.uah/uah.py approve --by <você>    # decisão humana
+cp orquestra/templates/project.yaml <project>/      # fill it in
+python3 uah-lite/skills/uah-init/uah.py --root <project> init --risk medium --project-id <id>
+python3 <project>/.uah/uah.py compile               # must finish without BLOQUEADO (blocked)
+# write <project>/plan/approved.md (it needs "## Escopo" (scope) and acceptance criteria)
+python3 <project>/.uah/uah.py approve --by <you>    # human decision
 ```
-Registre o guarda global em `~/.claude/settings.json` (PreToolUse, matcher `Bash`) e configure `GUARD_HOSTS` (aliases SSH confiáveis) e `GUARD_PROJECTS_BASE` (pasta dos projetos).
+Register the global guard in `~/.claude/settings.json` (PreToolUse, matcher `Bash`) and set `GUARD_HOSTS` (trusted SSH aliases) and `GUARD_PROJECTS_BASE` (projects folder).
 
-## Créditos e licença
-- Original: **Universal Agent Harness**, de Prof. Valter Carvalho-Silva e colaboradores, licença MIT. https://github.com/fatioleg/Universal-Agent-Harness
-- Adaptação: Mario Envall (2026), mesma licença MIT. Veja `LICENSE`.
+> Note: the scripts, templates and `AUTONOMIA_E_MODOS.md` are written in Portuguese, as used day to day by the maintainer.
+
+## Credits and license
+- Original: **Universal Agent Harness**, by Prof. Valter Carvalho-Silva and contributors, MIT license. https://github.com/fatioleg/Universal-Agent-Harness
+- Adaptation: Mario Envall (2026), same MIT license. See `LICENSE`.
