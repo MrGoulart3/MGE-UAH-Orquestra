@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+# Resource limits are maintained by the sibling project / Limites no projeto irmão.
+set -euo pipefail
+if [[ -z "${LOCALCOMPUTE_HOME:-}" ]]; then
+  echo 'Set LOCALCOMPUTE_HOME / Configure LOCALCOMPUTE_HOME' >&2
+  exit 2
+fi
+exec "$LOCALCOMPUTE_HOME/bin/capacidade_pc" "$@"
