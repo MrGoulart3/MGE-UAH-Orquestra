@@ -3,7 +3,7 @@ schema_version: "0.2"
 project:
   id: plant-oxidative-signaling-review
   title: Molecular modelling of SOD and CAT in plant oxidative signalling
-  owner: Valter Henrique Carvalho-Silva
+  owner: Ana
 
 objective: >-
   Map the scientific literature connecting plant oxidative signalling,

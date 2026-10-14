@@ -1,6 +1,6 @@
 {
   "layer": "H0",
-  "description": "Invariantes universais do UAH-lite. Valem para todo projeto e não podem ser removidas por camadas inferiores. [Fork PC do Mario 11/10/2026: push p/ mge-*, scp/rsync p/ clusters, curl p/ ntfy/groq tratados pelo guarda-global com exceções.]",
+  "description": "Universal invariants with explicit project grants for external actions.",
   "immutable_paths": [
     ".uah/**",
     ".git/**"
@@ -14,17 +14,17 @@
     {
       "id": "H0-rm-root",
       "pattern": "\\brm\\s+(-\\S+\\s+)*[\\\"']?(/\\*?|~/?\\*?|\\$HOME/?\\*?|\\$\\{HOME\\}/?\\*?|\\./?\\*?|\\.\\.)[\\\"']?(\\s|;|&|\\||$)",
-      "reason": "remoção recursiva da raiz ou da home"
+      "reason": "remo\u00e7\u00e3o recursiva da raiz ou da home"
     },
     {
       "id": "H0-pipe-shell",
       "pattern": "\\b(curl|wget)\\b[^|]*\\|\\s*(sudo\\s+)?((ba|z|da|k)?sh|python[0-9.]*|perl|ruby|node)\\b",
-      "reason": "executar script baixado da internet sem revisão"
+      "reason": "executar script baixado da internet sem revis\u00e3o"
     },
     {
       "id": "H0-force-push",
       "pattern": "\\bgit\\s+push(?=\\s|$).*(\\s(--force|-f)(\\s|$)|\\s\\+\\S+)",
-      "reason": "force push reescreve histórico remoto"
+      "reason": "force push reescreve hist\u00f3rico remoto"
     },
     {
       "id": "H0-disk",
@@ -34,25 +34,25 @@
     {
       "id": "H0-repo-delete",
       "pattern": "\\bgh\\s+repo\\s+delete\\b",
-      "reason": "apagar repositório remoto"
+      "reason": "apagar reposit\u00f3rio remoto"
     }
   ],
   "bash_ask": [
     {
       "id": "H0-approve",
       "pattern": "\\buah\\.py\\s+(--root\\s+\\S+\\s+)?(approve\\b|task\\b.*\\s--grant\\b|integrations\\s+(enable|install)\\b|setup-env\\b.*--install\\b|checkpoint\\b.*--reset-attempts\\b)",
-      "reason": "aprovar o plano, conceder permissão, ativar/instalar integração ou ferramentas, ou desbloquear tarefa após o limite de tentativas é decisão humana",
+      "reason": "aprovar o plano, conceder permiss\u00e3o, ativar/instalar integra\u00e7\u00e3o ou ferramentas, ou desbloquear tarefa ap\u00f3s o limite de tentativas \u00e9 decis\u00e3o humana",
       "locked": true
     },
     {
       "id": "H0-gh-publish",
       "pattern": "\\bgh\\s+(pr\\s+(create|merge)|release|repo\\s+(create|edit))\\b",
-      "reason": "ação pública no GitHub"
+      "reason": "a\u00e7\u00e3o p\u00fablica no GitHub"
     },
     {
       "id": "H0-pkg-publish",
       "pattern": "\\b(npm|pnpm|yarn)\\s+publish\\b|\\btwine\\s+upload\\b|\\bcargo\\s+publish\\b|\\bpoetry\\s+publish\\b|\\bgem\\s+push\\b",
-      "reason": "publicação de pacote"
+      "reason": "publica\u00e7\u00e3o de pacote"
     },
     {
       "id": "H0-mail",
@@ -62,12 +62,27 @@
     {
       "id": "H0-sudo",
       "pattern": "(?m)(^|[;&|(]\\s*|(\\b(xargs|exec|nohup|time|env)|-exec)\\s+)sudo\\b",
-      "reason": "elevação de privilégio"
+      "reason": "eleva\u00e7\u00e3o de privil\u00e9gio"
     },
     {
       "id": "H0-history-rewrite",
       "pattern": "\\bgit\\s+reset\\s+--hard\\b|\\bgit\\s+clean\\s+-\\S*f|--force-with-lease",
-      "reason": "descarta trabalho local ou reescreve histórico"
+      "reason": "descarta trabalho local ou reescreve hist\u00f3rico"
+    },
+    {
+      "id": "H0-push",
+      "pattern": "\\bgit\\s+push(?=\\s|$)",
+      "reason": "send to a remote repository"
+    },
+    {
+      "id": "H0-remote-copy",
+      "pattern": "\\bscp\\b|\\brsync\\b.*\\s\\S+:\\S*",
+      "reason": "copy to a remote machine"
+    },
+    {
+      "id": "H0-http-send",
+      "pattern": "\\bcurl\\b.*(\\s-X\\s*(POST|PUT|PATCH|DELETE)\\b|\\s(-d|--data\\S*|-F|--form|-T|--upload-file|--json)(\\s|=))",
+      "reason": "send data over HTTP"
     }
   ],
   "settings": {
@@ -78,7 +93,11 @@
       "Bash(gh release:*)",
       "Bash(npm publish:*)",
       "Bash(twine upload:*)",
-      "Bash(sudo:*)"
+      "Bash(sudo:*)",
+      "Bash(git push:*)",
+      "Bash(scp:*)",
+      "Bash(rsync:*)",
+      "Bash(curl -X POST:*)"
     ],
     "deny": [
       "Read(./.env)",

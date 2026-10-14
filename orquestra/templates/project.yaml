@@ -26,7 +26,7 @@ notes:                   # campos da orquestração (o uah.py só aceita extras 
     remoto: "<usuario>/<repo>"
     versoes: [v1]
   autonomia:
-    overrides: {}          # só ajusta a tabela de ~/MGE/pesquisa/diretrizes/AUTONOMIA_E_MODOS.md
+    overrides: {}          # só ajusta a tabela de orquestra/AUTONOMIA_E_MODOS.md
 integrations: []         # workflow-digestion, publish-documents, calcboard, sci-figures, specboard
 policy:
   immutable_paths: []    # nunca alterar (ex.: dados brutos, saídas de cálculo concluídas)

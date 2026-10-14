@@ -47,7 +47,7 @@ ASK = [
 ALLOW_IF = {
     "H0-remote-copy": [r"\b" + CLUSTERS + r":", r"\b(scp|rsync)\b[^\n]*\s" + CLUSTERS + r"\b"],
     "H0-http-send": [r"https://ntfy\.sh/", r"api\.groq\.com", r"openrouter\.ai"],
-    "H0-push": [r"__MGE_REPO__"],          # tratado em código: push em repositório git dentro de ~/MGE/pesquisa
+    "H0-push": [r"__MGE_REPO__"],          # tratado em código: push em repositório git dentro de a configured project root
     "H0-gh-publish": [r"\bgh\s+repo\s+create\s+proj-\S+\s+--private\b"],
 }
 
