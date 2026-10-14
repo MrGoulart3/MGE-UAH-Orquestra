@@ -1,5 +1,11 @@
 # MGE-UAH-Orquestra
 
+[![CI](https://github.com/MrGoulart3/MGE-UAH-Orquestra/actions/workflows/ci.yml/badge.svg?branch=ci)](https://github.com/MrGoulart3/MGE-UAH-Orquestra/actions/workflows/ci.yml) · [Changelog](CHANGELOG.md)
+
+O badge exibirá status após a publicação da branch `ci`. / The badge shows status after the `ci` branch is published.
+
+[Verificação local / Local checks](.github/CONTRIBUTING.md)
+
 *[English version](README.md)*
 
 **UAH-Orquestra é uma adaptação do [Universal Agent Harness (UAH)](https://github.com/fatioleg/Universal-Agent-Harness), criado pelos colaboradores do projeto original.** O original define como configurar e fiscalizar *um* projeto com agentes de IA (Claude Code, Codex): permissões, aprovação de plano e estado retomável. Esta adaptação junta isso a uma **orquestração de vários projetos ao mesmo tempo**, com um space central, o terminal herdr, economia de créditos e trabalho contínuo.

@@ -5,3 +5,7 @@ __pycache__/
 .env
 .omc/
 *.log
+.env.*
+!.env.example
+!.env.sample
+!.env.template
