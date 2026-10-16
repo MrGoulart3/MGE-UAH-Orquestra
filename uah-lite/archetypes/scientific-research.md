@@ -71,7 +71,7 @@ ledger; the reviewer does not modify the producer's artifact.
 
 ## Example instantiation
 
-A 6-month study of plant oxidative signalling mapping SOD and CAT
-with a downstream modelling plan. Topology stays at B; an
+A hypothetical 6-month study comparing published research methods
+with a downstream validation plan. Topology stays at B; an
 independent reviewer checks every claim against the ledger before
-the modelling plan is generated.
+the validation plan is generated.

@@ -132,6 +132,23 @@ class UahLiteTests(_Base):
         plan.write_text(plan.read_text() + "\n- T-002 — escopo novo\n")
         self.assertEqual(p.write("src/main.py"), "deny")  # alteração reabre o gate
 
+    def test_project_can_configure_preapproval_notes(self):
+        p = self.make(risk="medium")
+        self.assertEqual(p.write("notes/research.md"), "deny")
+        p.edit_yaml(lambda d: d["policy"].update(
+            plan_gate_paths=["notes/**"], immutable_paths=["notes/original.md"]))
+        out = p.uah("compile")
+        self.assertEqual(out.returncode, 0, out.stderr)
+        self.assertIsNone(p.write("notes/research.md"))
+        self.assertEqual(p.write("notes/original.md"), "deny")
+        self.assertEqual(p.write("src/main.py"), "deny")
+        self.assertIsNone(p.write("state/current.md"))
+        p.edit_yaml(lambda d: d["policy"].update(plan_gate_paths=[]))
+        self.assertEqual(p.uah("compile").returncode, 0)
+        self.assertEqual(p.write("notes/research.md"), "deny")
+        p.edit_yaml(lambda d: d["policy"].update(plan_gate_paths=["../outside/**"]))
+        self.assertEqual(p.uah("compile").returncode, 3)
+
     def test_incomplete_plan_is_rejected(self):
         p = self.make(risk="medium")
         (p.root / "plan/approved.md").write_text("---\nstatus: draft\n---\nFazer coisas sem critério algum, só ir fazendo.\n")

@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 # Cria o repositório git LOCAL de um space e faz o commit "v1" (tag v1), sem enviar nada para a internet.
 # Uso: git_v1.sh "<pasta do space>"
-# Versiona texto, scripts, inputs, resultados e documentos pequenos (< 20 MB cada). Arquivos grandes ou binários
+# Versiona texto, scripts, inputs, resultados e documentos pequenos (padrão 20 MiB; GIT_V1_MAX_SIZE). Arquivos grandes ou binários
 # pesados (.chk, .rwf, vídeo, venv, zip...) ficam FORA e são listados em ARQUIVOS_FORA_DO_GIT.txt.
 # Segredos (.dat, .env, chaves, tópico ntfy) nunca entram.
 set -euo pipefail
 D="$1"; cd "$D"
-LIM=20M
+LIM="${GIT_V1_MAX_SIZE:-20M}"
 if [ ! -d .git ]; then git init -q -b main; fi
 # identidade: use a sua (git config user.name / user.email)
 git config core.quotepath false
@@ -64,11 +64,11 @@ EOF
 if [ -f .gitignore ]; then cat .gitignore .gitignore.v1 | awk '!s[$0]++' > .gitignore.new; mv .gitignore.new .gitignore; else mv .gitignore.v1 .gitignore; fi
 rm -f .gitignore.v1
 # arquivos grandes: listar e ignorar
-find . -path ./.git -prune -o -type f -size +$LIM -print | sed 's#^\./##' | sort > ARQUIVOS_FORA_DO_GIT.txt
+find . -path ./.git -prune -o -type f -size "+$LIM" -print | sed 's#^\./##' | sort > ARQUIVOS_FORA_DO_GIT.txt
 if [ -s ARQUIVOS_FORA_DO_GIT.txt ]; then
   { echo "# --- arquivos > $LIM (lista em ARQUIVOS_FORA_DO_GIT.txt) ---"; sed 's#^#/#; s#\([][*?]\)#\\\1#g' ARQUIVOS_FORA_DO_GIT.txt; } >> .gitignore
 fi
 git add -A
-git commit -q -m "v1: estado do space antes da mescla com o UAH" || true
+git commit -q -m "v1: initial project snapshot" || true
 git tag -f v1 >/dev/null
 echo "$(basename "$D"): $(git ls-files | wc -l) arquivos versionados; $(du -sh .git | cut -f1) em .git; fora (grandes): $(wc -l < ARQUIVOS_FORA_DO_GIT.txt)"

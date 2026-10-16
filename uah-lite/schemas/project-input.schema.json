@@ -87,7 +87,7 @@
     "external_actions": {"type": "array", "items": {"type": "string"}},
     "human_gates": {"type": "array", "items": {"type": "string"}},
     "special_requirements": {"type": "array", "items": {"type": "string"}},
-    "language": {"type": "string", "default": "pt-BR"}
+    "language": {"type": "string", "default": "en"}
   },
   "$defs": {
     "riskLevel": {"enum": ["low", "medium", "high", "critical"]}

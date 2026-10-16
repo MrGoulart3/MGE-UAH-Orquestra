@@ -40,5 +40,5 @@ available_tools: []
 external_actions: []
 human_gates: []
 special_requirements: []
-language: pt-BR
+language: en  # configurable, e.g. pt-BR for Brazilian Portuguese
 

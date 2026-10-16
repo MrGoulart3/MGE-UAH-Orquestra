@@ -62,7 +62,8 @@ PROJECT_KEYS = {"id", "title", "domains"}
 RUNTIME_KEYS = {"python"}
 INTEGRATION_POLICY_KEYS = {"immutable_paths", "protected_paths", "bash_deny", "bash_ask", "plan_gate_paths", "gate_cli"}
 H2_POLICY_KEYS = {"immutable_paths", "protected_paths", "bash_deny", "bash_ask", "settings_allow",
-                  "settings_ask", "settings_deny", "grantable", "plan_gate", "g4_checkpoint", "max_attempts"}
+                  "settings_ask", "settings_deny", "grantable", "plan_gate", "g4_checkpoint", "max_attempts",
+                  "plan_gate_paths"}
 LEVELS = ("leve", "padrão", "crítico")
 LEDGER_REL = "state/tarefas.jsonl"
 H3_KEYS = {"task_id", "expires_at", "grants", "policy", "note"}
@@ -456,6 +457,7 @@ def resolve(root: Path) -> dict:
     add_unique(resolved["protected_paths"], _paths(p2.get("protected_paths", []), "H2.protected_paths"))
     add_unique(resolved["bash_deny"], _rules(p2.get("bash_deny", []), "H2.bash_deny", "H2"), "id")
     add_unique(resolved["bash_ask"], _rules(p2.get("bash_ask", []), "H2.bash_ask", "H2"), "id")
+    add_unique(resolved["plan_gate_paths"], _paths(p2.get("plan_gate_paths", []), "H2.plan_gate_paths"))
     add_unique(resolved["settings"]["deny"], _settings_rules(p2.get("settings_deny", []), "H2.settings_deny"))
     add_unique(resolved["settings"]["ask"], _settings_rules(p2.get("settings_ask", []), "H2.settings_ask"))
     allow = _settings_rules(p2.get("settings_allow", []), "H2.settings_allow")

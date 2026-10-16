@@ -115,12 +115,7 @@
     "project.yaml",
     "CLAUDE.md",
     "AGENTS.md",
-    ".omc/**",
-    "CONTINUIDADE.md",
-    "PENDENTES_CALC.md",
-    "_para_notebook/**",
-    "graphify-out/**",
-    "REGISTRO_CORRECOES.md"
+    ".omc/**"
   ],
   "readonly_bash": [
     "ls",

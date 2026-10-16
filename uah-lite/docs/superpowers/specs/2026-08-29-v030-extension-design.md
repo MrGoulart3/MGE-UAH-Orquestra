@@ -3,7 +3,7 @@
 **Status:** design approved, pending spec review.
 **Date:** 2026-08-29
 **Target version:** 0.3.0 (from 0.2.0)
-**Repository:** `AAAAMyArchitetures/Universal-Agent-Harness/`
+**Repository:** `<workspace>/Universal-Agent-Harness/` (illustrative checkout path)
 
 ## Context
 
@@ -23,7 +23,7 @@ The repository at v0.2.0 already implements:
   GitHub Actions CI.
 
 What v0.2.0 does NOT yet have, and what the cross-document analysis
-(transfer doc §1–§39) identified as missing or under-developed:
+(design gap analysis) identified as missing or under-developed:
 
 1. **Archetype catalog.** No reference patterns for recurring scientific
    or computational workflows. Agents have no curated vocabulary to draw
@@ -42,7 +42,7 @@ What v0.2.0 does NOT yet have, and what the cross-document analysis
 6. **Glossary and references.** No shared vocabulary list, no bibliography
    of the sources informing the design.
 7. **Eval catalog beyond bootstrap cases.** The 10 universal eval
-   categories from transfer §24 are not catalogued for projects to
+   categories identified in the design analysis are not catalogued for projects to
    select from.
 8. **Worked example.** No concrete instance showing how a project
    resolves through the harness.
@@ -310,7 +310,7 @@ New directory with placeholder structure:
 
 - `examples/README.md` — what examples are for, when to add one;
 - `examples/literature-review/` — a single worked example deferred
-  to v0.3.1 per user choice (folder structure only, no files yet).
+  to a later worked-example release (folder structure only, no files yet).
 
 Per the user's prior answer, the example is deferred. The folder
 exists to commit to the intent.
