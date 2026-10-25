@@ -11,7 +11,7 @@ runtime:
   python: "python3"
 notes:                   # campos da orquestração (o uah.py só aceita extras dentro de notes)
   dono: PC1                # PC1 (dono principal) | PC2 (outra pessoa autorizada)
-  maquina_mestre: pclinux  # máquina onde o trabalho principal acontece
+  maquina_mestre: main-host  # máquina onde o trabalho principal acontece
   prioridade: normal       # normal | alta (usado pelo diretrizes à noite e na fila dos servidores)
   creditos:
     perfil: economico
