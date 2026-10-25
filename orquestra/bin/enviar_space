@@ -1,0 +1,42 @@
+#!/usr/bin/env bash
+. "$(dirname -- "${BASH_SOURCE[0]}")/orchestra-env.sh"
+export PATH="$ORCHESTRA_BIN:$HOME/.local/bin:$PATH"   # cron sem ~/.local/bin (herdr) — 17/10
+PANE=${1:-}; MSG=${2:-}; MAX=${3:-600}; D="$ORCHESTRA_STATE/recados_pendentes"; mkdir -p "$D"
+[[ "$PANE" =~ ^w[0-9A-Za-z]+:p[0-9]+$ ]] && [ -n "$MSG" ] || { echo "uso: enviar_space <pane> \"msg\" [max_s]" >&2; exit 1; }
+[[ "$MAX" =~ ^[0-9]+$ ]] || exit 1
+status_pane() { herdr agent list 2>/dev/null | python3 -c "import json,sys
+for a in json.load(sys.stdin)['result']['agents']:
+  if a['pane_id']=='$PANE': print(a.get('agent_status','')); break"; }
+if [ "${URGENTE:-}" != 1 ] && [ "$(status_pane)" = working ]; then
+  [ -n "${NAO_GUARDAR:-}" ] && { echo "$PANE trabalhando: não enviado (quem chamou tenta depois)" >&2; exit 3; }
+  printf "%s" "$MSG" > "$D/${PANE//:/_}_$(date +%Y%m%d_%H%M%S)_$$.txt"
+  echo "$PANE trabalhando: recado guardado; chega quando terminar a tarefa" >&2; exit 0
+fi
+caixa() {  # imprime o texto DIGITADO na caixa (ignora a sugestão em cinza/esmaecido do Claude Code); "?" se não achou a caixa
+  herdr agent read "$PANE" --source visible --format ansi 2>/dev/null | python3 -c '
+import sys,re
+L=sys.stdin.read().splitlines()
+tira=lambda x: re.sub(r"\x1b\[[0-9;?]*[A-Za-z]","",x)
+sep=[i for i,l in enumerate(L) if tira(l).strip().startswith("\u2500")]
+if len(sep)<2: print("?"); sys.exit()
+a,b=sep[-2],sep[-1]
+txt=[]
+for l in L[a+1:b]:
+    l=re.sub(r"\x1b\[2m.*?(\x1b\[(0|22)m|$)","",l)   # sugestão esmaecida (ESC[2m) não é texto digitado
+    txt.append(tira(l))
+t=" ".join(txt).replace("\u276f","").replace("\xa0"," ").strip()
+print(t)'
+}
+envia() { herdr agent prompt "$PANE" "$1" >/dev/null 2>&1; }
+t0=$(date +%s)
+while :; do
+  c1=$(caixa); sleep "${SEND_SAMPLE_SECONDS:-4}"; c2=$(caixa)
+  if [ "$c1" = "?" ] || [ "$c2" = "?" ]; then break; fi      # não é Claude (codex/opencode): envia
+  if [ -z "$c1" ] && [ -z "$c2" ]; then
+    envia "$MSG"; exit $?
+  fi
+  [ $(( $(date +%s) - t0 )) -ge "$MAX" ] && break
+  sleep "${SEND_POLL_SECONDS:-20}"
+done
+[ -z "$NAO_GUARDAR" ] && printf "%s" "$MSG" > "$D/${PANE//:/_}_$(date +%Y%m%d_%H%M%S).txt"
+echo "caixa ocupada em $PANE (operator digitando?); recado guardado em $D" >&2; exit 2

@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+. "$(dirname -- "${BASH_SOURCE[0]}")/orchestra-env.sh"
+[ "${CICLO_ENABLE_PING:-0}" = 1 ] || { echo 'Set CICLO_ENABLE_PING=1 to authorize a minimal model call' >&2; exit 2; }
+cd /tmp || exit 2
+CICLO_ANCORA=1 timeout 120 "${CLAUDE_BIN:-claude}" -p --model "${CICLO_MODEL:-haiku}" --tools '' --strict-mcp-config --mcp-config '{"mcpServers":{}}' --no-session-persistence 'Reply only: ok' < /dev/null >> "$ORCHESTRA_STATE/ancorar_janela.log" 2>&1
+exit $?

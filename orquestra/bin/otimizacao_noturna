@@ -1,0 +1,49 @@
+#!/usr/bin/env bash
+. "$(dirname -- "${BASH_SOURCE[0]}")/orchestra-env.sh"
+set -uo pipefail
+export PATH="$ORCHESTRA_BIN:$HOME/.local/bin:$PATH"   # cron não tem ~/.local/bin (herdr): sem isso pulou a fila toda em 16/10
+D="$ORCHESTRA_STATE"/otimizacao; Q=$D/fila.txt; A=$D/atual; LOG=$D/log; mkdir -p "$D"; touch "$Q"
+MAX=${OTIM_MAX:-75}; LIMITE_S=$((4*3600))
+LIVRE=""; [ "$(cat "$ORCHESTRA_STATE"/LIVRE_NOITE 2>/dev/null)" = "$(date -d "-8 hours" +%F)" ] && { LIVRE=1; MAX=101; }
+agora() { date '+%F %T'; }
+if [ "${1:-}" = --status ]; then echo "== atual"; cat "$A" 2>/dev/null; echo "== fila"; cat "$Q"; echo "== log"; tail -15 "$LOG" 2>/dev/null; exit 0; fi
+exec 8>"$D/.lock"; flock -n 8 || exit 0
+
+if [ -s "$A" ]; then
+  IFS='|' read -r nome pane ini < "$A"
+  if [ -f "$D/$nome.feito" ]; then echo "$(agora) FEITO $nome ($(( ($(date +%s)-ini)/60 )) min)" >> "$LOG"; rm -f "$A"
+  elif [ $(( $(date +%s)-ini )) -gt $LIMITE_S ]; then echo "$(agora) TEMPO ESGOTADO $nome (fila retida)" >> "$LOG"; exit 0
+  else exit 0; fi
+fi
+
+h=$(date +%-H); FIM=5; [ -n "$LIVRE" ] && FIM=7; { [ "$h" -ge 21 ] || [ "$h" -lt $FIM ]; } || [ -n "${OTIM_FORCAR:-}" ] || exit 0
+[ -f "$D/PAUSA" ] && exit 0
+[ ! -f "$ORCHESTRA_STATE/PORTA_FECHADA" ] || exit 0
+if [ -s "$ORCHESTRA_STATE/ECONOMIA_ATE" ] && [ "$(date +%s)" -lt "$(cat "$ORCHESTRA_STATE/ECONOMIA_ATE")" ]; then exit 0; fi
+pct=$(MEDIDOR_SO_CACHE=1 "$ORCHESTRA_BIN/medidor" | python3 -c 'import sys
+p, reset, age = sys.stdin.read().split()
+assert 0 <= float(age) <= 1200
+print(int(float(p)))') || exit 0
+[ "$pct" -lt "$MAX" ] || { echo "$(agora) espera: créditos ${pct}%" >> "$LOG"; exit 0; }
+
+ocup=$(herdr agent list 2>/dev/null | python3 -c "import json,sys,os
+print(' '.join(a['pane_id'] for a in json.load(sys.stdin)['result']['agents'] if a['pane_id'] in os.environ.get('ORCHESTRA_PRIORITY_PANES','').split(',') and a.get('agent_status')=='working'))")
+[ -z "$ocup" ] || [ "$pct" -lt 50 ] || [ -n "$LIVRE" ] || { echo "$(agora) espera: prioritário trabalhando ($ocup)" >> "$LOG"; exit 0; }
+
+linha=$(grep -v '^\s*#' "$Q" | grep -v '^\s*$' | head -1); [ -n "$linha" ] || exit 0
+IFS='|' read -r nome pane <<< "$linha"
+[[ "$nome" =~ ^[A-Za-z0-9_-]+$ && "$pane" =~ ^w[A-Za-z0-9]+:p[0-9]+$ ]] || exit 2
+[ "$nome" = coordinator ] && pane=$("$ORCHESTRA_BIN"/pane_coordenador)
+herdr agent list >/dev/null 2>&1 || { echo "$(agora) herdr indisponível; tento depois" >> "$LOG"; exit 0; }
+st=$(herdr agent list 2>/dev/null | python3 -c "import json,sys
+for a in json.load(sys.stdin)['result']['agents']:
+  if a['pane_id']=='$pane': print(a.get('agent_status','')); break")
+[ "$st" = working ] && exit 0
+[ -n "$st" ] || { echo "$(agora) PULADO $nome: sem agente em $pane" >> "$LOG"; grep -vxF -- "$linha" "$Q" > "$Q.tmp"; mv "$Q.tmp" "$Q"; exit 0; }
+msg="OTIMIZAÇÃO NOTURNA DE CONTEXTO (via coordinator, pedido do operator 16/10; pontual): leia e execute ${ORCHESTRA_DOCS}/OTIMIZACAO_NOTURNA.md devagar, usando opencode/nemotron/codex para economizar. Seu nome na fila: $nome. Ao terminar grave "$ORCHESTRA_STATE"/otimizacao/$nome.feito (libera o próximo space)."
+if NAO_GUARDAR=1 "$ORCHESTRA_BIN"/enviar_space "$pane" "$msg" 60 >/dev/null 2>&1; then
+  rm -f "$D/$nome.feito"
+  echo "$nome|$pane|$(date +%s)" > "$A"; grep -vxF -- "$linha" "$Q" > "$Q.tmp"; mv "$Q.tmp" "$Q"
+  echo "$(agora) INICIO $nome ($pane, créditos ${pct}%)" >> "$LOG"
+fi
+exit 0

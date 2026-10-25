@@ -1,0 +1,49 @@
+#!/usr/bin/env bash
+. "$(dirname -- "${BASH_SOURCE[0]}")/orchestra-env.sh"
+set -o pipefail
+export PATH="$ORCHESTRA_BIN:$HOME/.local/bin:$PATH"
+P=${1:-}; MODO=${2:-}; D="$ORCHESTRA_STATE"/reinicio; LOG=$D/log; mkdir -p "$D"; agora() { date '+%F %T'; }
+[[ "$P" =~ ^w[0-9A-Za-z]+:p[0-9]+$ ]] || { echo "uso: reiniciar_space <pane>"; exit 1; }
+[ "$P" != "$ORCHESTRA_COORDINATOR" ] || { echo "Coordinator restart requires another operator" >&2; exit 2; }
+case "$MODO" in
+  --cancelar) rm -f "$D/$P.pronto"; touch "$D/$P.cancelar"; echo "$(agora) CANCELADO $P" >> "$LOG"; echo "reinício de $P cancelado"; exit 0 ;;
+  --liberar) rm -f "$D/$P.cancelar"; echo "reinícios de $P liberados"; exit 0 ;;
+esac
+[ -f "$D/$P.cancelar" ] && { echo "$P: o operator cancelou o reinício (reiniciar_space $P --liberar para permitir)"; exit 6; }
+exec 8>"$D/$P.lock"; flock -n 8 || { echo "$P: já há um reinício em curso"; exit 8; }   # 22/10: portal + ciclo noturno ao mesmo tempo
+sessao() { herdr agent list 2>/dev/null | python3 -c "import json,sys
+for a in json.load(sys.stdin)['result']['agents']:
+  if a['pane_id']=='$P' and a.get('agent')=='claude': print((a.get('agent_session') or {}).get('value','')); break"; }
+[ -f "$D/$P.pronto" ] || [ "$MODO" = --forcar ] || [ "$MODO" = --barato ] || { echo "sem $D/$P.pronto: o space ainda não se preparou"; exit 2; }
+st=$(herdr agent list | python3 -c "import json,sys
+for a in json.load(sys.stdin)['result']['agents']:
+  if a['pane_id']=='$P' and a.get('agent')=='claude': print(a.get('agent_status','')); break") || { echo "não foi possível consultar o estado de $P" >&2; exit 3; }
+for i in $(seq 1 60); do [ "$st" = working ] || break; sleep 5; st=$(herdr agent list | python3 -c "import json,sys
+for a in json.load(sys.stdin)['result']['agents']:
+  if a['pane_id']=='$P' and a.get('agent')=='claude': print(a.get('agent_status','')); break") || { echo "não foi possível consultar o estado de $P" >&2; exit 3; }; done   # espera até 5 min o Claude parar
+[[ "$st" = idle || "$st" = done ]] || { echo "$P trabalhando; tente depois"; exit 3; }
+HANDOFF=""
+if [ "$MODO" = --barato ]; then
+  HANDOFF=$("$ORCHESTRA_BIN"/passagem_space "$P") || { echo "$(agora) FALHA passagem $P" >> "$LOG"; exit 5; }
+fi
+herdr agent read "$P" --source visible 2>/dev/null | grep -q "moved to the background" && { herdr agent send-keys "$P" Escape >/dev/null 2>&1; sleep 2; }
+[ -f "$D/$P.cancelar" ] && { echo "$P: cancelado pelo operator antes do /exit"; exit 6; }
+[ "$MODO" = --forcar ] || [ "$MODO" = --barato ] || [ -f "$D/$P.pronto" ] || { echo "$P: o .pronto sumiu (cancelado?)"; exit 6; }
+SID_VELHA=$(sessao)
+herdr pane send-text "$P" "/exit" >/dev/null && herdr pane send-keys "$P" Enter >/dev/null
+sleep 3; herdr agent read "$P" --source visible 2>/dev/null | grep -q "Background work is running" && { herdr pane send-keys "$P" Down >/dev/null; sleep 1; herdr pane send-keys "$P" Enter >/dev/null; }
+for i in $(seq 1 30); do sleep 2; herdr agent list | grep -q "\"pane_id\":\"$P\"" || break; done
+sleep 2
+iniciar() { herdr agent start "claude-$(echo "${P%%:*}" | tr A-Z a-z)-$(date +%m%d%H%M)" --kind claude --pane "$P" --timeout 120000 >/dev/null 2>&1; }
+iniciar || { sleep 60; iniciar; } || { echo "$(agora) FALHA ao iniciar claude em $P" >> "$LOG"; echo "falha ao iniciar"; exit 4; }
+sleep 10
+MENSAGEM="SESSÃO NOVA (reinício limpo pedido pelo operator, via coordinator): leia o CLAUDE.md e o CONTINUIDADE.md deste space e retome o próximo passo; se não houver nada pendente, fique em stand-by."
+if [ "$MODO" = --barato ]; then
+  MENSAGEM="SESSÃO NOVA (reinício barato, via coordinator): leia só o CLAUDE.md, o CONTINUIDADE.md e o handoff mais recente em handoff/ ($HANDOFF). Para detalhes antigos use graphify query \"<pergunta>\" --budget 800 ou grep no handoff; não releia arquivos inteiros. Confira se o CONTINUIDADE está coerente com o handoff (corrija o CONTINUIDADE se faltar algo) e retome o próximo passo; sem pendência, stand-by."
+fi
+for i in $(seq 1 12); do SID_NOVA=$(sessao); [ -n "$SID_NOVA" ] && [ "$SID_NOVA" != "$SID_VELHA" ] && break; sleep 5; done   # até 60 s
+if [ -z "$SID_NOVA" ] || [ "$SID_NOVA" = "$SID_VELHA" ]; then echo "$(agora) ABORTADO $P: sessão não trocou ($SID_VELHA)" >> "$LOG"; echo "sessão não trocou; nada enviado"; exit 7; fi
+URGENTE=1 "$ORCHESTRA_BIN"/enviar_space "$P" "$MENSAGEM" 120 >/dev/null 2>&1
+sleep 3; herdr pane send-keys "$P" Enter >/dev/null 2>&1   # sessão recém-aberta às vezes perde o Enter
+mv "$D/$P.pronto" "$D/$P.feito_$(date +%Y%m%d_%H%M)" 2>/dev/null
+echo "$(agora) REINICIADO $P" >> "$LOG"; echo "reiniciado $P"

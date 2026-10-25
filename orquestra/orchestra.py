@@ -67,7 +67,10 @@ def prompt(agent: dict, message: str, dry_run: bool = False) -> None:
     if dry_run:
         print(f'DRY RUN: {agent["pane_id"]}: {message}')
     else:
-        herdr('agent', 'prompt', agent['pane_id'], message)
+        subprocess.run([str(Path(__file__).parent / 'bin/enviar_space'),
+                        agent['pane_id'], message, '0'],
+                       env=os.environ | {'NAO_GUARDAR': '1'},
+                       check=True, timeout=15)
 
 
 def mode(value: str | None) -> None:

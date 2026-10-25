@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-10-24
+
+- Add configurable credit gates and morning cycle, noninterrupting messages, file-based cluster requests and reservations, session handoffs/restarts, serial night queues, generic delivery and central catalog tools.
+
 ## [Unreleased]
 
 ### Added / Adicionado

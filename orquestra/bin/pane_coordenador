@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+. "$(dirname -- "${BASH_SOURCE[0]}")/orchestra-env.sh"
+[ -n "$ORCHESTRA_COORDINATOR" ] || { echo 'Set ORCHESTRA_COORDINATOR' >&2; exit 2; }
+printf '%s\n' "$ORCHESTRA_COORDINATOR"

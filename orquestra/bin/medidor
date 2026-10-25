@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+. "$(dirname -- "${BASH_SOURCE[0]}")/orchestra-env.sh"
+export PATH="$ORCHESTRA_BIN:$HOME/.local/bin:$PATH"
+if [[ -v MEDIDOR_FAKE ]]; then printf '%s 0\n' "$MEDIDOR_FAKE"; exit 0; fi
+export CLAUDE_VER=$(basename "$(readlink -f "$HOME/.local/bin/claude")" 2>/dev/null)
+node --input-type=module <<'JS'
+import {pathToFileURL} from 'node:url';
+import {readFileSync} from 'node:fs';
+try {
+
+  const so = process.env.MEDIDOR_SO_CACHE === '1';
+  let u;
+  if (so || !process.env.USAGE_API_MODULE) u = {rateLimits: JSON.parse(readFileSync(process.env.USAGE_CACHE)).data};
+  else {
+    const {getUsage} = await import(pathToFileURL(process.env.USAGE_API_MODULE));
+    u = await getUsage(/^\d+\.\d+\.\d+$/.test(process.env.CLAUDE_VER || '') ? {clientVersion:process.env.CLAUDE_VER} : undefined);
+  }
+  // 20/10: o OMC marca stale mesmo com cache de 2 min; a idade (3ª coluna) é conferida por quem usa.
+  if (!u.rateLimits || u.error) throw Error(u.error || 'medidor sem dados atuais');
+  const r = u.rateLimits;
+  const cache = JSON.parse(readFileSync(process.env.USAGE_CACHE));
+  const age = Math.max(0, Math.floor((Number(process.env.AGORA || Date.now()/1000)*1000-cache.timestamp)/1000));
+  if (!Number.isFinite(age)) throw Error('cache sem timestamp válido');
+  console.log(`${r.fiveHourPercent ?? 0} ${r.fiveHourResetsAt ? new Date(r.fiveHourResetsAt).toISOString() : '-'} ${age}`);
+} catch(e) { console.error(`medidor: ${e.message}`); process.exitCode=1; }
+JS

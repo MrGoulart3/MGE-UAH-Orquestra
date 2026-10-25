@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+. "$(dirname -- "${BASH_SOURCE[0]}")/orchestra-env.sh"
+export PATH="$ORCHESTRA_BIN:$HOME/.local/bin:$PATH"
+D="$ORCHESTRA_STATE/recados_pendentes"; mkdir -p "$D"; exec 9>"$D/.entregar.lock"; flock -n 9 || exit 0
+declare -A st
+while IFS='|' read -r p s; do st[$p]=$s; done < <(herdr agent list 2>/dev/null | python3 -c 'import json,sys
+for a in json.load(sys.stdin)["result"]["agents"]: print(a["pane_id"]+"|"+a.get("agent_status",""))')
+for pane in $(ls "$D"/*.txt 2>/dev/null | xargs -r -n1 basename | sed -E 's/^([^_]+)_([^_]+)_.*/\1:\2/' | sort -u); do
+  case "${st[$pane]}" in idle|done) ;; *) continue ;; esac
+  fs=$(ls "$D"/"${pane//:/_}"_*.txt 2>/dev/null | sort)
+  [ -n "$fs" ] || continue
+  msg=$(for f in $fs; do cat "$f"; printf '\n\n'; done)
+  [ "$(echo "$fs" | wc -l)" -gt 1 ] && msg="(recados guardados enquanto você trabalhava)"$'\n\n'"$msg"
+  if URGENTE=1 NAO_GUARDAR=1 "$ORCHESTRA_BIN"/enviar_space "$pane" "$msg" 60 >/dev/null 2>&1; then rm -f $fs; fi
+done

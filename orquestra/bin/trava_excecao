@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+. "$(dirname -- "${BASH_SOURCE[0]}")/orchestra-env.sh"
+C="$USAGE_CACHE"
+r=$(python3 -c "import json,datetime;r=json.load(open('$C'))['data']['fiveHourResetsAt'];print(datetime.datetime.fromtimestamp(round(datetime.datetime.fromisoformat(r.replace('Z','+00:00')).timestamp()/600)*600).strftime('%FT%H:%M'))")
+for p in "$@"; do echo "$p $r" >> "$ORCHESTRA_STATE"/trava_excecoes; echo "exceção: $p até a janela renovar ($r)"; done

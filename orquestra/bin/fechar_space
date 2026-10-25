@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+. "$(dirname -- "${BASH_SOURCE[0]}")/orchestra-env.sh"
+set -o pipefail
+export PATH="$ORCHESTRA_BIN:$HOME/.local/bin:$PATH"
+P=${1:-}; MODO=${2:-}; D="$ORCHESTRA_STATE"/reinicio; LOG=$D/log; mkdir -p "$D"; agora() { date '+%F %T'; }
+[[ "$P" =~ ^w[0-9A-Za-z]+:p[0-9]+$ ]] || { echo "uso: fechar_space <pane> [--direto]"; exit 1; }
+[ "$P" = "$("$ORCHESTRA_BIN"/pane_coordenador 2>/dev/null)" ] && { echo "o coordinator não fecha a si mesmo"; exit 1; }
+exec 8>"$D/$P.lock"; flock -n 8 || { echo "$P: já há um reinício/fechamento em curso"; exit 8; }
+estado() { herdr agent list 2>/dev/null | python3 -c "import json,sys
+for a in json.load(sys.stdin)['result']['agents']:
+  if a['pane_id']=='$P' and a.get('agent')=='claude': print(a.get('agent_status','')); break"; }
+st=$(estado) || { echo "não foi possível consultar o estado de $P" >&2; exit 3; }
+[ -n "$st" ] || { echo "$P: sem Claude aberto (já fechado)"; exit 0; }
+espera() {  # até $1 s pelo Claude parar de trabalhar
+  for i in $(seq 1 $(( $1 / 5 ))); do st=$(estado); [ "$st" = working ] || return 0; sleep 5; done; return 1; }
+if [ "$MODO" != --direto ]; then
+  NAO_GUARDAR=1 "$ORCHESTRA_BIN"/enviar_space "$P" "FECHAR SPACE (pedido do operator pelo portal): grave agora o CONTINUIDADE.md (estado, próximo passo) e faça o commit; não comece nada novo. Depois disso a sessão será encerrada (stand-by)." 600 >/dev/null 2>&1 \
+    || { echo "$(agora) FALHA fechar $P: recado não entregue" >> "$LOG"; echo "não consegui entregar o pedido ao space"; exit 5; }
+  sleep 15
+fi
+espera 900 || { echo "$(agora) FALHA fechar $P: ainda trabalhando após 15 min" >> "$LOG"; echo "$P ainda trabalhando; tente depois"; exit 3; }
+herdr agent read "$P" --source visible 2>/dev/null | grep -q "moved to the background" && { herdr agent send-keys "$P" Escape >/dev/null 2>&1; sleep 2; }
+herdr pane send-text "$P" "/exit" >/dev/null && herdr pane send-keys "$P" Enter >/dev/null
+sleep 3; herdr agent read "$P" --source visible 2>/dev/null | grep -q "Background work is running" && { herdr pane send-keys "$P" Down >/dev/null; sleep 1; herdr pane send-keys "$P" Enter >/dev/null; }
+for i in $(seq 1 45); do sleep 2; [ -z "$(estado)" ] && { echo "$(agora) FECHADO $P" >> "$LOG"; echo "fechado $P (stand-by)"; exit 0; }; done
+echo "$(agora) FALHA fechar $P: não saiu" >> "$LOG"; echo "$P não saiu"; exit 4

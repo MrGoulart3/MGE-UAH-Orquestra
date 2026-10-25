@@ -10,3 +10,7 @@
 6. Se usar UAH, preencha `project.yaml`, inicialize e compile pelo harness incluído. Respeite os gates e o escopo autorizado. Criar workspace não autoriza cálculos novos, publicação ou configuração global.
 7. Para tarefas longas, crie `vigia_status.sh` determinístico, com eventos estáveis, timeout finito e estados terminais. Registre cotas e use MGE-LocalCompute para admissão local.
 8. Cadastre na central dentro do escopo autorizado. Valide abas, cwd, instruções, checkpoint, preflight e integrações opcionais. Registre PASS/FAIL com evidências; revisão independente somente leitura pode ser usada quando apropriada.
+
+## Integração atual
+
+Configure coordenador, exclusões e caminhos pelo arquivo de exemplo. Confira medidor/cache e hook sem chamada ao modelo. Teste envio para agente ocupado, reserva de vagas com adaptador falso e cancelamento de reinício. Prepare CONTINUIDADE, handoff e diretório de entregas. Instale cron/timer só por solicitação explícita; mantenha agendas de cálculo e de créditos separadas. Leia os guias em `orquestra/docs/`.

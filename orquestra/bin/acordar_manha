@@ -1,0 +1,30 @@
+#!/usr/bin/env bash
+. "$(dirname -- "${BASH_SOURCE[0]}")/orchestra-env.sh"
+export PATH="$ORCHESTRA_BIN:$HOME/.local/bin:$PATH"
+O="$ORCHESTRA_STATE"; agora=${AGORA:-$(date +%s)}; M="$O/acordou.$(date -d "@$agora" +%F)"
+exec 9>"$O/.acordar_manha.lock"; flock -n 9 || exit 0
+[ -e "$M" ] && exit 0
+if [ -e "$O/PORTA_FECHADA" ] && ! grep -q teto "$O/PORTA_FECHADA" && [ ! -e "$O/CICLO_LIBERADO" ]; then exit 1; fi
+msg="RETOMADA DA MANHÃ (ciclo matutino, automática, sem IA): a janela nova de créditos abriu. Trabalhe em MODO ECONOMIA com teto RÍGIDO de ${CYCLE_MORNING_CAP:-30}% nesta janela (em ${CYCLE_MORNING_CAP:-30}% a porta do ciclo fecha até a janela renovar; operator, até segunda ordem). Leia o seu CONTINUIDADE e retome o que estava pausado; sem nada pendente, fique em stand-by."
+esp=$(sed -n 's/^ESPACOS=//p' "$O/acordar_manha.conf" 2>/dev/null)
+panes=$(herdr agent list 2>/dev/null | ESP="$esp" python3 -I -c "
+import json,os,sys
+esp=os.environ.get('ESP','').split()
+for a in json.load(sys.stdin)['result']['agents']:
+    if a.get('agent')=='claude' and a.get('workspace_id') not in os.environ.get('ORCHESTRA_EXCLUDE','').split(',') and (not esp or a.get('workspace_id') in esp): print(a['pane_id'])") || panes=""
+[ -n "$panes" ] || { echo "$(date '+%F %T') acordar_manha: nenhum agente listado" >> "$O/ciclo.log"; exit 1; }
+failed=0
+for p in $panes; do
+  sent="$M.$p"
+  [ ! -e "$sent" ] || continue
+  if [ -n "${DRYRUN:-}" ]; then
+    echo "DRYRUN -> $p"
+  elif URGENTE=1 NAO_GUARDAR=1 "$ORCHESTRA_BIN/enviar_space" "$p" "$msg" 120 >/dev/null 2>&1; then
+    touch "$sent"
+  else
+    failed=1
+  fi
+done
+if [ -z "${DRYRUN:-}" ] && [ "$failed" = 0 ]; then touch "$M"; fi
+echo "$(date '+%F %T') acordar_manha: $(echo $panes) failed=$failed" >> "$O/ciclo.log"
+exit "$failed"

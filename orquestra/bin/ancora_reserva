@@ -1,0 +1,33 @@
+#!/usr/bin/env bash
+. "$(dirname -- "${BASH_SOURCE[0]}")/orchestra-env.sh"
+export PATH="$ORCHESTRA_BIN:$HOME/.local/bin:$PATH"
+O="$ORCHESTRA_STATE"; LOG="$O/ciclo_reserva.log"; mkdir -p "$O"
+agora=${AGORA:-$(date +%s)}
+ancora=$(sed -n 's/^ANCORA=\([0-9][0-9]:[0-9][0-9]\)$/\1/p' "$O/ciclo.conf" 2>/dev/null); ancora=${ancora:-05:00}
+tol=$(sed -n 's/^TOL=\([0-9]*\)$/\1/p' "$O/ciclo.conf" 2>/dev/null); tol=${tol:-30}
+a=$(date -d "$(date -d "@$agora" +%F) $ancora" +%s)
+[ "$agora" -ge $((a+180)) ] && [ "$agora" -le $((a+5400)) ] || exit 0
+exec 9>"$O/.ancora_reserva.lock"; flock -n 9 || exit 0
+log(){ echo "$(date -d "@$agora" '+%F %T') [${1}] $2" >> "$LOG"; }
+origem=${CICLO_ORIGEM:-cron}
+if ! command -v node >/dev/null 2>&1 && [ "$(cat "$O/ciclo_reserva.node" 2>/dev/null)" != "$a" ]; then
+  echo "$a" > "$O/ciclo_reserva.node"; "$ORCHESTRA_BIN/avisar" 'Ciclo matutino' 'Node ausente: ciclo_controle parado; só a reserva está agindo' >/dev/null 2>&1; fi
+expiry=$(cat "$O/CICLO_LIBERADO" 2>/dev/null)
+if [[ "$expiry" =~ ^[0-9]+$ ]] && [ "$expiry" -le "$agora" ]; then rm -f "$O/CICLO_LIBERADO"; fi
+[ -e "$O/CICLO_LIBERADO" ] && { log "$origem" "liberado; nada a fazer"; exit 0; }
+manha=$(cat "$O/ciclo.manha" 2>/dev/null); manha=${manha%%.*}
+if [[ $manha =~ ^[0-9]+$ ]] && [ "$manha" -ge $((a-tol*60-600)) ]; then
+  log "$origem" "manhã já registrada ($(date -d "@$manha" +%H:%M)); só confere o acordar"
+else
+  CICLO_ANCORA=1 "$ORCHESTRA_BIN/ancorar_janela"; rc=$?
+  log "$origem" "ping rc=$rc"
+  if [ "$rc" -eq 0 ]; then
+    echo "$agora" > "$O/ciclo.manha"; echo "$a" > "$O/ciclo.dia"
+    rm -f "$O/ciclo.pendente" "$O/ciclo.parado"
+    grep -q 'teto' "$O/PORTA_FECHADA" 2>/dev/null || rm -f "$O/PORTA_FECHADA"
+  elif [ "$agora" -ge $((a+1200)) ] && [ "$(cat "$O/ciclo_reserva.alerta" 2>/dev/null)" != "$a" ]; then
+    echo "$a" > "$O/ciclo_reserva.alerta"
+    "$ORCHESTRA_BIN/avisar" 'Ciclo matutino' "Reserva: janela da manhã NÃO abriu até $(date -d "@$agora" +%H:%M) (ping rc=$rc). Ver "$ORCHESTRA_STATE"/ciclo_reserva.log" >/dev/null 2>&1
+  fi
+fi
+"$ORCHESTRA_BIN/acordar_manha" || log "$origem" "acordar_manha falhou"

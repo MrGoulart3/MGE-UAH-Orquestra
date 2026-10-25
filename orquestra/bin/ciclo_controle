@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+. "$(dirname -- "${BASH_SOURCE[0]}")/orchestra-env.sh"
+export PATH="$ORCHESTRA_BIN:$HOME/.local/bin:$PATH"
+mkdir -p "$ORCHESTRA_STATE"
+exec 9>"$ORCHESTRA_STATE/.ciclo.lock"
+flock -n 9 || exit 0
+exec node "$ORCHESTRA_BIN/ciclo_core.mjs" controle "$@"

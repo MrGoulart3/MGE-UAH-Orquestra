@@ -1,0 +1,5 @@
+# Economy mode and morning summary
+
+`modo_economia HH:MM` sets `ECONOMIA_ATE`, moving a past time to the next day, and requests that current agents save continuity and stop new model work. Autonomous calculations continue. Grants and optimization must respect the economy deadline; no watcher should wake the coordinator for routine events during it. This mode is a scheduling limit, not new task authorization.
+
+`resumo_manha` sends a summary request to the configured coordinator, retrying while busy for up to nine attempts, normally every five minutes. Schedule once at 07:00. `RESUMO_PULAR_YYYY-MM-DD` suppresses today's scheduled summary; `RESUMO_FORCAR=1` bypasses it. `RESUMO_PANE` overrides the destination; `ORCHESTRA_SUMMARY_RETRY_SECONDS` is a test/timing override. The script itself does not summarize with a model; the receiving agent does. Include actual night jobs, failures, credit plan versus reality, blocked prompts and unresolved operator decisions. Send only a short notification free of secrets, personal addresses and unpublished data, with the full report in the project chat. Notification quiet hours remain in `avisar`.

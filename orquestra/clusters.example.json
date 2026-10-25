@@ -1,0 +1,35 @@
+{
+  "priority": [
+    "sample-alpha",
+    "sample-beta"
+  ],
+  "lease_seconds": 1800,
+  "unreachable_seconds": 3600,
+  "repeat_seconds": 7200,
+  "clusters": {
+    "batch": {
+      "measure_command": [
+        "/opt/site/bin/measure-batch",
+        "--json"
+      ],
+      "max_cores": 64,
+      "max_memory_gb": 128,
+      "max_load": 64,
+      "max_jobs": 8,
+      "max_job_cores": 8,
+      "max_job_memory_gb": 20,
+      "max_age_seconds": 1200
+    },
+    "shared": {
+      "measure_command": [
+        "/opt/site/bin/measure-shared",
+        "--json"
+      ],
+      "max_cores": 18,
+      "max_memory_gb": 64,
+      "max_load": 30,
+      "max_jobs": 3,
+      "max_age_seconds": 1200
+    }
+  }
+}

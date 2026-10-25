@@ -1,0 +1,50 @@
+#!/usr/bin/env python3
+"""Central dos Spaces DENTRO do portal (/central), sem IA (22/10/2026, operator).
+Uso: central_add --titulo "..." --url URL --space <nome> --desc "..." --tipo literatura|relatório|ferramenta|prévia|foto do dia [--id x] [--atalho]
+     central_add --arquivar <url ou id>   (página superada)      central_add --listar
+Grava em ${ORCHESTRA_CENTRAL} (mesmo id = atualiza). O space padrão é a pasta de ~/projects onde roda."""
+import argparse, fcntl, json, os, re, sys, time
+from pathlib import Path
+P = Path(os.environ.get('ORCHESTRA_CENTRAL', str(Path.home() / '.config/mge-agentportal/central.json'))).expanduser()
+P.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+a = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+a.add_argument('--titulo'); a.add_argument('--url'); a.add_argument('--space'); a.add_argument('--desc', default='')
+a.add_argument('--tipo', default='relatório'); a.add_argument('--id'); a.add_argument('--atalho', action='store_true')
+a.add_argument('--arquivar'); a.add_argument('--listar', action='store_true')
+o = a.parse_args()
+with open(P.with_suffix('.lock'), 'w') as trava:
+    fcntl.flock(trava, fcntl.LOCK_EX)
+    try:
+        d = json.loads(P.read_text())
+    except (OSError, ValueError):
+        d = {}
+    if o.listar:
+        for k, v in sorted(d.items(), key=lambda x: x[1].get('created', '')):
+            print(('[arq] ' if v.get('archived') else '') + f"{k} | {v.get('space')} | {v.get('title')} | {v.get('url')}")
+        sys.exit()
+    if o.arquivar:
+        ks = [k for k, v in d.items() if k == o.arquivar or v.get('url') == o.arquivar]
+        if not ks:
+            sys.exit('não achei: ' + o.arquivar)
+        for k in ks:
+            d[k]['archived'] = True
+    else:
+        if not (o.titulo and o.url):
+            sys.exit('faltou --titulo e --url (veja --help)')
+        if not re.match(r'https?://', o.url):
+            sys.exit('url precisa começar com http(s)://')
+        sp = o.space
+        if not sp:
+            try:
+                sp = Path.cwd().resolve().relative_to((Path(os.environ.get('ORCHESTRA_PROJECTS', str(Path.home() / 'projects'))).expanduser()).resolve()).parts[0]
+            except (ValueError, IndexError):
+                sys.exit('rode na pasta do space ou passe --space')
+        k = o.id or re.sub(r'[^a-z0-9]+', '-', (sp + '-' + o.titulo).lower()).strip('-')[:80]
+        doc = d.get(k, {})
+        doc.update(title=o.titulo[:200], url=o.url, space=sp, desc=o.desc[:600], kind=o.tipo, archived=False,
+                   created=doc.get('created') or time.strftime('%Y-%m-%dT%H:%M'))
+        if o.atalho:
+            doc['shortcut'] = True
+        d[k] = doc
+    tmp = P.with_suffix('.tmp'); tmp.write_text(json.dumps(d, ensure_ascii=False, indent=1)); os.chmod(tmp, 0o600); tmp.replace(P)
+    print('Central atualizada (portal /central):', o.arquivar or k)

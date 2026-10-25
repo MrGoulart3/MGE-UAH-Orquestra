@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+. "$(dirname -- "${BASH_SOURCE[0]}")/orchestra-env.sh"
+set -o pipefail
+export PATH="$ORCHESTRA_BIN:$HOME/.local/bin:$PATH"
+W=${1:-}; D="$ORCHESTRA_STATE"/reinicio; LOG=$D/log; mkdir -p "$D"; agora() { date '+%F %T'; }
+[[ "$W" =~ ^w[0-9A-Za-z]+$ ]] || { echo "uso: acordar_space <workspace>"; exit 1; }
+capacity=$(capacidade_pc 2>/dev/null) || { echo 'Capacity unavailable' >&2; exit 9; }
+[ -n "$capacity" ] || exit 9
+printf '%s' "$capacity" | grep -Eq "LOTADO|LOTADA|FULL" && { echo "PC LOTADO (capacidade_pc): não abro sessão agora"; exit 9; }
+exec 8>"$D/$W.acordar.lock"; flock -n 8 || { echo "$W: já está acordando"; exit 8; }
+P=$(herdr pane list | python3 -c "
+import json,sys,re
+ps=[p for p in json.load(sys.stdin)['result']['panes'] if p['workspace_id']=='$W']
+if not ps or any(p.get('agent') for p in ps): sys.exit(2)
+print(sorted(ps,key=lambda p:int(re.sub(r'\D','',p['pane_id'].split(':')[1])))[0]['pane_id'])") \
+  || { echo "$W: não existe ou já tem agente aberto"; exit 2; }
+nome="claude-$(echo "$W" | tr A-Z a-z)-$(date +%m%d%H%M)"
+if herdr agent start "$nome" --kind claude --pane "$P" --timeout 120000 -- --continue >/dev/null 2>&1; then
+  echo "$(agora) ACORDADO $P (--continue)" >> "$LOG"; echo "acordado $P (conversa anterior retomada)"; exit 0
+fi
+sleep 3   # sem conversa anterior o --continue sai: sessão nova
+herdr agent start "$nome" --kind claude --pane "$P" --timeout 120000 >/dev/null 2>&1 \
+  || { echo "$(agora) FALHA acordar $P" >> "$LOG"; echo "falha ao abrir o Claude em $P"; exit 4; }
+sleep 10
+URGENTE=1 "$ORCHESTRA_BIN"/enviar_space "$P" "SESSÃO NOVA (space acordado pelo operator no portal): leia o CLAUDE.md e o CONTINUIDADE.md deste space e retome o próximo passo; se não houver nada pendente, fique em stand-by." 120 >/dev/null 2>&1
+echo "$(agora) ACORDADO $P (sessão nova)" >> "$LOG"; echo "acordado $P (sessão nova pelo CONTINUIDADE)"

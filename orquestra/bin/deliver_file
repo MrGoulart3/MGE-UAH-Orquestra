@@ -1,0 +1,109 @@
+#!/usr/bin/env python3
+"""Entrega arquivo(s) ao operator pela página /arquivos do Portal dos Spaces (15/10/2026).
+Uso: deliver_file <arquivo> [<arquivo>...] [-d "descrição curta"] [--space <nome>] [--mover]
+       [--mudou "o que mudou desde a versão anterior"] [--pergunta "pergunta ao operator"]... [--substituir] [--sem-previa]
+22/10: mesmo nome no mesmo space = versão nova (v2, v3…); --substituir recolhe as anteriores na página.
+Office (.docx/.pptx/.xlsx/.odt…) ganha prévia em PDF para o celular; apresentação ganha também folha de contato (JPG).
+Copia (ou move) para ~/.local/share/mge-deliveries/<space>/AAAAMMDD_HHMMSS_xxxx_<nome> (600) e anota no indice.jsonl.
+O space é a pasta do projeto em ~/projects de onde o comando roda (ou --space). Pastas: zipe antes."""
+import argparse, fcntl, json, os, re, secrets, shutil, subprocess, sys, tempfile, time
+from pathlib import Path
+
+RAIZ = Path(os.environ.get('ORCHESTRA_PROJECTS', str(Path.home() / 'projects'))).expanduser()
+ENT = Path(os.environ.get('ENTREGAS_DIR') or Path.home() / '.local/share/mge-deliveries')   # teste: ENTREGAS_DIR=<pasta>
+
+def space_de(p: Path):
+    p = p.resolve()
+    try:
+        rel = p.relative_to(RAIZ.resolve())
+    except ValueError:
+        return None, None
+    return (rel.parts[0], str(RAIZ / rel.parts[0])) if rel.parts else (None, None)
+
+def nome_seguro(nome):
+    base = re.sub(r'[^\w.\- ]+', '_', Path(nome).name).strip(' .')
+    return (Path(base).stem[:90].strip(' .') or 'arquivo') + Path(base).suffix[:10]
+
+a = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+a.add_argument('arquivos', nargs='+'); a.add_argument('-d', '--descricao', default='')
+a.add_argument('--space'); a.add_argument('--mover', action='store_true')
+a.add_argument('--mudou', default=''); a.add_argument('--pergunta', action='append', default=[])
+a.add_argument('--substituir', action='store_true'); a.add_argument('--sem-previa', action='store_true')
+o = a.parse_args()
+sp, pasta = (o.space, '') if o.space else space_de(Path.cwd())
+if sp and not re.fullmatch(r'[A-Za-z0-9_-]+', sp):
+    sys.exit('Invalid space')
+if not sp:
+    sys.exit('Rode dentro da pasta do space (~/projects/<space>) ou passe --space <nome>.')
+ENT.mkdir(mode=0o700, exist_ok=True); (ENT / sp).mkdir(mode=0o700, exist_ok=True)
+OFFICE = {'.docx', '.doc', '.odt', '.rtf', '.pptx', '.ppt', '.odp', '.xlsx', '.xls', '.ods'}
+
+def anteriores(nome):
+    """ids das entregas anteriores com o mesmo nome neste space (para versão e --substituir)."""
+    ids = []
+    try:
+        for l in (ENT / 'indice.jsonl').read_text(errors='replace').splitlines():
+            try:
+                r = json.loads(l)
+            except ValueError:
+                continue
+            if r.get('tipo') == 'entrega' and r.get('space') == sp and r.get('nome') == nome:
+                ids.append(r['id'])
+    except OSError:
+        pass
+    return ids
+
+def previas(dest, eid):
+    """PDF do Office (soffice) e, para apresentações, folha de contato PNG. Falha não impede a entrega."""
+    out = {}
+    try:
+        with tempfile.TemporaryDirectory() as tmp:
+            r = subprocess.run(['nice', '-n', '15', 'timeout', '240', 'soffice', f'-env:UserInstallation=file://{tmp}/perfil',
+                                '--headless', '--convert-to', 'pdf', '--outdir', tmp, str(dest)], capture_output=True)
+            pdfs = list(Path(tmp).glob('*.pdf'))
+            if not pdfs:
+                return out
+            pdf = ENT / sp / f'{eid}_previa.pdf'; shutil.copyfile(pdfs[0], pdf); os.chmod(pdf, 0o600)
+            out['previa'] = str(pdf.relative_to(ENT))
+            if dest.suffix.lower() in ('.pptx', '.ppt', '.odp'):
+                subprocess.run(['nice', '-n', '15', 'timeout', '120', 'pdftoppm', '-png', '-scale-to', '480', '-l', '60', str(pdf), f'{tmp}/s'], capture_output=True)
+                from PIL import Image
+                ims = [Image.open(x) for x in sorted(Path(tmp).glob('s-*.png'), key=lambda x: int(re.findall(r'\d+', x.stem)[-1]))]
+                if ims:
+                    w, h, col = max(i.width for i in ims), max(i.height for i in ims), 3
+                    fol = Image.new('RGB', (col * w + (col + 1) * 8, ((len(ims) + col - 1) // col) * (h + 8) + 8), 'white')
+                    for k, im in enumerate(ims):
+                        fol.paste(im.convert('RGB'), (8 + (k % col) * (w + 8), 8 + (k // col) * (h + 8)))
+                    png = ENT / sp / f'{eid}_folha.jpg'; fol.save(png, quality=78, optimize=True); os.chmod(png, 0o600)
+                    out['folha'] = str(png.relative_to(ENT))
+    except Exception as e:   # prévia é conveniência
+        print(f'(sem prévia: {e})', file=sys.stderr)
+    return out
+for arq in o.arquivos:
+    f = Path(arq)
+    if not f.is_file():
+        print(f'PULEI {arq}: não é arquivo (pasta? zipe antes)', file=sys.stderr); continue
+    eid = time.strftime('%Y%m%d_%H%M%S') + '_' + secrets.token_hex(2)
+    dest = ENT / sp / f'{eid}_{nome_seguro(f.name)}'
+    (shutil.move if o.mover else shutil.copyfile)(str(f), str(dest))
+    os.chmod(dest, 0o600)
+    velhos = anteriores(f.name)
+    reg = dict(tipo='entrega', id=eid, space=sp, pasta=pasta, nome=f.name, arquivo=str(dest.relative_to(ENT)),
+               tamanho=dest.stat().st_size, criado=time.strftime('%Y-%m-%dT%H:%M:%S'),
+               descricao=o.descricao[:300], origem=str(dest if o.mover else f.resolve()), versao=len(velhos) + 1)
+    if o.mudou:
+        reg['mudou'] = o.mudou[:600]
+    if o.pergunta:
+        reg['perguntas'] = [x[:500] for x in o.pergunta[:10]]
+    if dest.suffix.lower() in OFFICE and not o.sem_previa:
+        reg.update(previas(dest, eid))
+    with open(ENT / 'indice.jsonl', 'a') as idx:
+        fcntl.flock(idx, fcntl.LOCK_EX)
+        velhos = anteriores(f.name); reg['versao'] = len(velhos) + 1   # recontado dentro da trava (entregas simultâneas)
+        idx.write(json.dumps(reg, ensure_ascii=False) + '\n')
+        if o.substituir:
+            for v in velhos:
+                idx.write(json.dumps(dict(tipo='oculto', id=v, quando=reg['criado'], motivo='substituido', por=eid)) + '\n')
+    os.chmod(ENT / 'indice.jsonl', 0o600)
+    extra = ''.join(f' +{k}' for k in ('previa', 'folha') if k in reg) + (f' (v{reg["versao"]}' + (', anteriores recolhidas)' if o.substituir and velhos else ')') if velhos else '')
+    print(f'ENTREGUE {f.name} ({reg["tamanho"]} B){extra} -> página Arquivos do Portal, space "{sp}"')

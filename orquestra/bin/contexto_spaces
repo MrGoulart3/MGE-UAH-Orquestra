@@ -1,0 +1,50 @@
+#!/usr/bin/env bash
+. "$(dirname -- "${BASH_SOURCE[0]}")/orchestra-env.sh"
+set -o pipefail
+export PATH="$ORCHESTRA_BIN:$HOME/.local/bin:$PATH"
+LIM=${CTX_LIMITE:-40}; D="$ORCHESTRA_STATE"/reinicio; LOG=$D/log; mkdir -p "$D"; agora() { date '+%F %T'; }
+if [ "${1:-}" = --noite ]; then
+  HORA=$((10#$(date +%H)))
+  [ "$HORA" -ge 21 ] || [ "$HORA" -lt 7 ] || exit 0
+  exec 9>"$D/noite.lock"
+  flock -n 9 || exit 0
+  NOITE=$(date +%F)
+  [ "$HORA" -ge 21 ] || NOITE=$(date -d yesterday +%F)
+  CONTADOR="$D/noite_$NOITE"
+  TOTAL=0
+  [ ! -f "$CONTADOR" ] || read -r TOTAL < "$CONTADOR"
+  [[ "$TOTAL" =~ ^[0-9]+$ ]] || { echo "contador inválido: $CONTADOR" >&2; exit 1; }
+  [ "$TOTAL" -lt 3 ] || exit 0
+fi
+EU=$("$ORCHESTRA_BIN"/pane_coordenador)
+PANES=$(herdr agent list | python3 -c 'import json,sys; print(" ".join(a["pane_id"] for a in json.load(sys.stdin)["result"]["agents"] if a.get("agent")=="claude"))')
+ctx() { herdr agent read "$1" --source visible 2>/dev/null | grep -o 'ctx:\[[^]]*\][0-9]*%' | tail -1 | grep -o '[0-9]*' | tail -1; }
+estado() { herdr agent list 2>/dev/null | python3 -c "import json,sys
+for a in json.load(sys.stdin)['result']['agents']:
+  if a['pane_id']=='$1' and a.get('agent')=='claude': print(a.get('agent_status','')); break"; }
+for p in $PANES; do
+  c=$(ctx "$p"); st=$(estado "$p") || { echo "$(agora) FALHA ao consultar estado $p" >> "$LOG"; continue; }; [ -n "$c" ] || continue
+  [ "${1:-}" = --status ] && { echo "$p ctx=$c% $st"; continue; }
+  echo "$(agora) $p ctx=$c% $st" >> "$LOG"
+  if [ "${1:-}" = --noite ]; then
+    [ "$p" != "$EU" ] && [ "$c" -ge "$LIM" ] && [ "$st" != working ] || continue
+    if "$ORCHESTRA_BIN"/reiniciar_space "$p" --barato >> "$LOG" 2>&1; then
+      TOTAL=$((TOTAL + 1))
+      echo "$TOTAL" > "$CONTADOR"
+      echo "$(agora) NOITE reiniciado $p ($TOTAL/3)" >> "$LOG"
+    else
+      echo "$(agora) NOITE falha $p" >> "$LOG"
+    fi
+    [ "$TOTAL" -lt 3 ] || break
+    continue
+  fi
+  if [ -f "$D/$p.pronto" ]; then [ "$p" != "$EU" ] && "$ORCHESTRA_BIN"/reiniciar_space "$p" >> "$LOG" 2>&1; continue; fi
+  [ "$c" -ge "$LIM" ] || continue
+  [ -f "$D/$p.pedido_$(date +%F)" ] && continue
+  if [ "$p" = "$EU" ]; then
+    "$ORCHESTRA_BIN"/enviar_space "$p" "CONTEXTO (automático): o coordinator está em ${c}% (limite ${LIM}%). Prepare-se pelo docs/REINICIO_SPACES.md e peça ao operator para reiniciá-lo (ou, se ele estiver fora, peça a outro space que rode: "$ORCHESTRA_BIN"/reiniciar_space $p --forcar)." 120 >/dev/null 2>&1
+  elif [ "$st" != working ]; then
+    "$ORCHESTRA_BIN"/enviar_space "$p" "PREPARAR REINÍCIO (via coordinator, regra do operator 19/10: não compactar, reiniciar): seu contexto está em ${c}% (limite ${LIM}%). Siga ${ORCHESTRA_DOCS}/REINICIO_SPACES.md: grave o relevante no CLAUDE.md/CONTINUIDADE/memória, limpe a tralha do space e, ao final, rode: touch "$ORCHESTRA_STATE"/reinicio/$p.pronto  (eu reinicio sua sessão em seguida)." 120 >/dev/null 2>&1
+  else continue; fi
+  touch "$D/$p.pedido_$(date +%F)"; echo "$(agora) PEDIDO preparo $p (${c}%)" >> "$LOG"
+done

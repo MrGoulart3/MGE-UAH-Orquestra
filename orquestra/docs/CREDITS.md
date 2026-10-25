@@ -1,0 +1,7 @@
+# Credit protection
+
+`medidor` prints `percent reset_ISO age_seconds`. `USAGE_CACHE` points to an existing usage cache (`timestamp` in milliseconds; `data.fiveHourPercent`, `data.fiveHourResetsAt`). Cache-only is the default. Set `USAGE_API_MODULE` to an installed usage-api module to refresh; `MEDIDOR_SO_CACHE=1` always disables refresh, especially with the cycle door closed. No credentials are copied into this repository.
+
+`trava_creditos` runs every five minutes. Defaults: day warning/pause 75/80%; night 21:00–07:00 90/95%; morning warning/pause 25/30%. `TRAVA_AVISO` and `TRAVA_PAUSA` override thresholds; `CYCLE_MORNING_CAP` changes the morning cap. Except in the capped morning window, no routine pause is requested during the final 30 minutes. Stale data older than 1,200 seconds is logged, never treated as available credits. Day/night state and notification deduplication use the reset window. Notification levels are 80/90 only. `LIVRE_NOITE` containing the current night date disables routine night limits, not the cycle door.
+
+`trava_excecao <pane>...` records an exception for the current reset window. Direct messages beginning `Operator:` or `[Recado do Operator` pass the cycle hook; set `ORCHESTRA_OPERATOR_LABEL` to match the Portal `dono` setting. A direct morning request releases the cap only until that window resets. Never use an exception to infer authorization for a new task. `DRYRUN=1 trava_creditos` previews prompts and notifications; diagnostic logs may still be written.

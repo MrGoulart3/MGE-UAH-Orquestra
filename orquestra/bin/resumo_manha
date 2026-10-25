@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+. "$(dirname -- "${BASH_SOURCE[0]}")/orchestra-env.sh"
+export PATH="$ORCHESTRA_BIN:$HOME/.local/bin:$PATH"
+[ -z "${RESUMO_FORCAR:-}" ] && [ "$(date +%H)" = 07 ] && [ -f "$ORCHESTRA_STATE/RESUMO_PULAR_$(date +%F)" ] && exit 0
+PANE=${RESUMO_PANE:-$("$ORCHESTRA_BIN"/pane_coordenador)}; LOG="$ORCHESTRA_STATE/resumo_manha.log"; mkdir -p "$ORCHESTRA_STATE"
+MSG="RESUMO DA MANHA (cron): monte o resumo do que aconteceu durante a noite (21h-7h) e mande ao operator: clusters (clusters.log, jobs que terminaram/falharam), render/calculos locais, cada space do PC1 (CONTINUIDADE e telas), avisos do vigia, creditos e pendencias que dependem dele. Envie pelo "$ORCHESTRA_BIN"/avisar (titulo 'Resumo da noite', ate ~6 linhas, sem senhas/IPs/dados de pesquisa) e deixe a versao completa no chat. Registre no CONTINUIDADE."
+for i in $(seq 1 9); do
+  st=$(herdr agent list 2>/dev/null | python3 -c "import json,sys;a=[x for x in json.load(sys.stdin)['result']['agents'] if x['pane_id']=='$PANE'];print(a[0].get('agent_status','') if a else '')" 2>/dev/null)
+  if [[ "$st" =~ ^(idle|done|unknown)$ ]] && NAO_GUARDAR=1 "$ORCHESTRA_BIN"/enviar_space "$PANE" "$MSG" 60 >/dev/null 2>&1; then
+    echo "$(date '+%F %T') enviado (tentativa $i)" >> "$LOG"; exit 0; fi
+  sleep "${ORCHESTRA_SUMMARY_RETRY_SECONDS:-300}"
+done
+echo "$(date '+%F %T') NAO enviado: coordinator ocupado ate 07:40" >> "$LOG"
+"$ORCHESTRA_BIN"/avisar 'Resumo da noite' 'O coordinator estava ocupado; o resumo sai assim que ele ficar livre.' >/dev/null 2>&1

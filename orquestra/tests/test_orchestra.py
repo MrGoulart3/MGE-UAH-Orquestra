@@ -36,7 +36,7 @@ args = sys.argv[1:]
 if args[:2] == ['agent', 'list']:
     print((root / 'agents.json').read_text())
 elif args[:2] == ['agent', 'read']:
-    print('You hit your usage limit')
+    print('You hit your usage limit\\n────────────────\\n❯ \\n────────────────')
 elif args[:2] == ['agent', 'prompt']:
     with (root / 'prompts.jsonl').open('a') as f:
         f.write(json.dumps(args) + '\\n')
@@ -47,7 +47,7 @@ else:
         env = {'ORCHESTRA_STATE': str(self.root / 'state'), 'ORCHESTRA_PROJECTS': str(self.root / 'projects'),
                'HERDR_BIN': str(self.fake), 'FAKE_ROOT': str(self.root),
                'ORCHESTRA_TRANSCRIPTS': str(self.root / 'transcripts'), 'NTFY_TOPIC': '',
-               'ORCHESTRA_WATCH_INTERVAL': '0', 'MGE_LANG': 'en',
+               'ORCHESTRA_WATCH_INTERVAL': '0', 'SEND_SAMPLE_SECONDS': '0', 'MGE_LANG': 'en',
                'ORCHESTRA_JOB_STATE': str(self.root / 'jobs.json')}
         (self.root / 'jobs.json').write_text('{"jobs": []}')
         self.patch = mock.patch.dict(os.environ, env)

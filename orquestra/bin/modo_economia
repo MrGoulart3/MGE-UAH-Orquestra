@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+. "$(dirname -- "${BASH_SOURCE[0]}")/orchestra-env.sh"
+export PATH="$ORCHESTRA_BIN:$HOME/.local/bin:$PATH"
+ate=$(date -d "${1:-07:00}" +%s) || exit 1; [ "$ate" -le "$(date +%s)" ] && ate=$(date -d "tomorrow ${1:-07:00}" +%s); echo "$ate" > "$ORCHESTRA_STATE"/ECONOMIA_ATE
+m="MODO ECONOMIA (automático, sem IA; ciclo matutino do operator): das $(date +%H:%M) até ${1:-07:00} PARE de usar o Claude: termine em no máximo 10 min o passo atual, grave o CONTINUIDADE e fique em stand-by até ${1:-07:00} (às ${1:-07:00} a janela nova abre e vocês são acordados). Pode deixar rodando o que roda sozinho (Codex, modelos grátis, cálculos, vigias)."
+for p in $(herdr agent list | python3 -c 'import json,sys; print(" ".join(a["pane_id"] for a in json.load(sys.stdin)["result"]["agents"] if a.get("agent")=="claude"))'); do NAO_GUARDAR=1 URGENTE=1 "$ORCHESTRA_BIN"/enviar_space $p "$m" 60 >/dev/null 2>&1; done
+echo "$(date '+%F %T') modo economia até ${1:-07:00}" >> "$ORCHESTRA_STATE"/modo_economia.log

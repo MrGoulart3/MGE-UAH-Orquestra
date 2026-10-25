@@ -93,3 +93,21 @@ Validation: `python3 -m unittest discover -s orquestra/tests -v`; `python3 orque
 
 - [MGE-AgentPortal](https://github.com/MrGoulart3/MGE-AgentPortal): authenticated workspace access and optional PC resources panel.
 - [MGE-LocalCompute](https://github.com/MrGoulart3/MGE-LocalCompute): shared resource admission, nighttime queue and gradual thermal guard.
+
+
+## How the pieces fit
+
+The meter feeds credit protection and the morning door. Watchers queue notices until an agent is idle. Ready cluster work requests slots through files; only successful grants notify its agent. Context restarts save a handoff first. Night optimization and priority work are serialized separately. LocalCompute owns admission and process protection; AgentPortal invokes the lifecycle scripts and displays configured delivery folders.
+
+| System | Commands | Guide |
+|---|---|---|
+| Credits | `medidor`, `trava_creditos`, `trava_excecao` | [Credits](orquestra/docs/CREDITS.md) |
+| Morning cycle | `ciclo`, `ciclo_controle`, `ciclo_porta_hook`, `ancora_reserva`, `ancorar_janela`, `acordar_manha` | [Cycle](orquestra/docs/CICLO_MATUTINO.md) |
+| Messages | `enviar_space`, `entregar_pendentes`, `pane_coordenador` | [Messages](orquestra/docs/MESSAGES.md) |
+| Cluster slots | `pedir_vaga`, `checar_clusters`, `registrar_job` | [Clusters](orquestra/docs/CLUSTERS.md) |
+| Context and lifecycle | `contexto_spaces`, `passagem_space`, `reiniciar_space`, `custo_sessoes`, `fechar_space`, `acordar_space` | [Restart](orquestra/docs/REINICIO_SPACES.md) |
+| Night queues | `otimizacao_noturna`, `fila_prioridade_noite` | [Optimization](orquestra/docs/OTIMIZACAO_NOTURNA.md) |
+| Files and links | `deliver_file`, `central_add` | [Delivery](orquestra/docs/DELIVERIES.md) |
+| Economy and summary | `modo_economia`, `resumo_manha` | [Economy](orquestra/docs/ECONOMY_AND_SUMMARY.md) |
+
+Copy `orquestra/config.example.sh` to a trusted local file and export `ORCHESTRA_CONFIG` to its absolute path. Keep configuration and runtime state out of Git. Add `orquestra/bin` to PATH. Do not copy individual wrappers without `orchestra-env.sh`, the Python modules and `ciclo_core.mjs`. Configure the coordinator and cluster adapters before installing cron/hooks manually. No schedules, settings, remote jobs or services are changed by this repository. The morning ping requires explicit configuration. Validate offline with `python .github/scripts/check.py`.

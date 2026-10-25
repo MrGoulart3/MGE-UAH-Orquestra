@@ -1,0 +1,130 @@
+#!/usr/bin/env bash
+. "$(dirname -- "${BASH_SOURCE[0]}")/orchestra-env.sh"
+exec python3 - "$@" <<'PY'
+import argparse
+import collections
+import datetime
+import json
+import os
+from pathlib import Path
+import re
+import shutil
+import subprocess
+import sys
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser()
+    parser.add_argument('pane')
+    parser.add_argument('--sem-ia', action='store_true')
+    args = parser.parse_args()
+    panes = json.loads(subprocess.check_output(['herdr', 'pane', 'list'], text=True))
+    space = next((Path(p['cwd']) for p in panes['result']['panes']
+                  if p['pane_id'] == args.pane), None)
+    if space is None:
+        raise ValueError(f'Pane não encontrado: {args.pane}')
+    project = Path(os.environ.get('ORCHESTRA_TRANSCRIPTS', str(Path.home() / '.claude/projects'))).expanduser() / re.sub(r'[/ ]', '-', str(space))
+    session = max(project.glob('*.jsonl'), key=lambda p: p.stat().st_mtime)
+    users, assistants, commands, dialogue = [], [], [], []
+    files = collections.Counter()
+    start = end = ''
+    with session.open() as source:
+        for line in source:
+            try:
+                entry = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if not start:
+                start = entry.get('timestamp', '')
+            end = entry.get('timestamp', end)
+            role = entry.get('type')
+            content = entry.get('message', {}).get('content', [])
+            if isinstance(content, str):
+                content = [{'type': 'text', 'text': content}]
+            if role not in ('user', 'assistant'):
+                continue
+            texts = [b.get('text', '') for b in content if b.get('type') == 'text']
+            message = '\n'.join(texts).strip()
+            if role == 'user' and ('CHECAR_CLUSTERS' in message or message.startswith('<')):
+                message = ''
+            if message:
+                (users if role == 'user' else assistants).append(message)
+                dialogue.append(f'{role}: {message[:1500]}\n')
+            if role == 'assistant':
+                for block in content:
+                    if block.get('type') != 'tool_use':
+                        continue
+                    data = block.get('input', {})
+                    if block.get('name') in ('Write', 'Edit', 'NotebookEdit'):
+                        name = data.get('file_path') or data.get('notebook_path')
+                        if name:
+                            files[name] += 1
+                    if block.get('name') == 'Bash':
+                        command = data.get('command', '')
+                        if re.search(r'qsub|rodar_seguro|rodar_local|setsid|nohup|fila_noturna|sbatch|3[0-9]{4}', command):
+                            commands.append(command[:200])
+    commits = 'Início da sessão indisponível; git log omitido.'
+    if start:
+        result = subprocess.run(['git', '-C', str(space), 'log', '--oneline',
+                                 f'--since={start}', '-20'], capture_output=True, text=True)
+        commits = result.stdout.strip() if result.returncode == 0 else 'Space sem histórico Git disponível.'
+    quality = 'Parte B omitida: --sem-ia.'
+    if not args.sem_ia:
+        prompt = ('Você recebe o diálogo filtrado de uma sessão de trabalho. Escreva no máximo 30 linhas: '
+                  '(1) decisões tomadas e o porquê; (2) o que ficou pela metade; '
+                  '(3) armadilhas/erros já vistos e como foram resolvidos; '
+                  '(4) preferências do operator expressas na sessão. Não invente; '
+                  'se algo não estiver no texto, omita. Cite números/IDs exatamente.\n\n')
+        filtered = ''.join(dialogue)[-120000:]
+        env = os.environ.copy()
+        env.pop('CLAUDECODE', None)
+        for key in ('CLAUDE_CODE_USE_BEDROCK', 'CLAUDE_CODE_USE_VERTEX', 'CLAUDE_CODE_USE_FOUNDRY',
+                    'ANTHROPIC_BASE_URL'):
+            env.pop(key, None)
+        try:
+            result = subprocess.run(
+                ['claude', '-p', '--model', os.environ.get('HANDOFF_MODEL', 'haiku'), '--tools', '', '--allowedTools', '',
+                 '--strict-mcp-config', '--mcp-config', '{"mcpServers":{}}',
+                 '--safe-mode', '--no-session-persistence'],
+                input=prompt + filtered, capture_output=True, text=True, timeout=180,
+                cwd='/tmp', env=env)
+            if result.returncode or not result.stdout.strip():
+                detail = (result.stderr or result.stdout or 'resposta vazia').strip()[:1000]
+                quality = f'Parte B omitida: falha do claude (código {result.returncode}): {detail}'
+            else:
+                quality = '\n'.join(result.stdout.strip().splitlines()[:30])
+        except (OSError, subprocess.TimeoutExpired) as error:
+            quality = f'Parte B omitida: falha do claude: {error}'
+    stamp = datetime.datetime.now().strftime('%Y-%m-%d_%H%M')
+    folder = space / 'handoff'
+    folder.mkdir(exist_ok=True)
+    output = folder / f'{stamp}.md'
+    sections = [f'# Passagem de bastão — {space.name}', f'Space: {space}',
+                f'Sessão: {session.stem}', f'Período: {start} → {end}',
+                f'JSONL: {session.stat().st_size} bytes', '\n## A — Extração sem IA',
+                '\n### Últimos pedidos do usuário']
+    sections += [f'- {t[:400]}' for t in users[-15:]]
+    sections += ['\n### Arquivos criados/editados (contagem)']
+    sections += [f'- {name}: {count}' for name, count in files.items()]
+    sections += ['\n### Comandos de jobs'] + [f'- {t}' for t in commands[-20:]]
+    sections += ['\n### Últimas mensagens do assistente'] + [f'- {t[:600]}' for t in assistants[-10:]]
+    sections += ['\n### Commits desde o início', commits or '(nenhum)', '\n## B — Qualidade', quality]
+    output.write_text('\n'.join(sections) + '\n')
+    vault = space / 'graphify-out/obsidian'
+    if vault.is_dir():
+        notes = vault / '_notas'
+        notes.mkdir(exist_ok=True)
+        shutil.copy2(output, notes / f'handoff_{stamp}.md')
+    for old in sorted(folder.glob('????-??-??_????.md'), reverse=True)[5:]:
+        archive = folder / '_antigos'
+        archive.mkdir(exist_ok=True)
+        shutil.move(str(old), archive / old.name)
+    print(output)
+
+
+try:
+    main()
+except (OSError, ValueError, subprocess.SubprocessError) as error:
+    print(f'passagem_space: {error}', file=sys.stderr)
+    sys.exit(1)
+PY

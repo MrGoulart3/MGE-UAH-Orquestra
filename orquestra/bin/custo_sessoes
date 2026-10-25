@@ -1,0 +1,67 @@
+#!/usr/bin/env bash
+. "$(dirname -- "${BASH_SOURCE[0]}")/orchestra-env.sh"
+exec python3 - "$@" <<'PY'
+import argparse
+import datetime
+import json
+import os
+from pathlib import Path
+
+
+def instant(value: str) -> datetime.datetime:
+    """Interpreta ISO sem fuso no horário local."""
+    return datetime.datetime.fromisoformat(value.replace('Z', '+00:00')).astimezone()
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser()
+    parser.add_argument('desde', nargs='?')
+    parser.add_argument('--space')
+    args = parser.parse_args()
+    since = instant(args.desde) if args.desde else datetime.datetime.now().astimezone() - datetime.timedelta(hours=5)
+    rows, visited = [], set()
+    for project in sorted((Path(os.environ.get('ORCHESTRA_TRANSCRIPTS', str(Path.home() / '.claude/projects'))).expanduser()).iterdir(), key=lambda p: (p.is_symlink(), p.name)):
+        if not project.is_dir() or project.resolve() in visited:
+            continue
+        visited.add(project.resolve())
+        weight = calls = maximum = 0
+        seen = set()
+        for source in project.rglob('*.jsonl'):
+            with source.open() as stream:
+                for line in stream:
+                    try:
+                        entry = json.loads(line)
+                        if not entry.get('timestamp') or instant(entry['timestamp']) < since:
+                            continue
+                    except (ValueError, TypeError):
+                        continue
+                    message = entry.get('message', {})
+                    usage = message.get('usage')
+                    if entry.get('type') != 'assistant' or not usage:
+                        continue
+                    identity = (message.get('id'), entry.get('requestId'))
+                    if identity != (None, None):
+                        if identity in seen:
+                            continue
+                        seen.add(identity)
+                    inp = usage.get('input_tokens', 0)
+                    write = usage.get('cache_creation_input_tokens', 0)
+                    read = usage.get('cache_read_input_tokens', 0)
+                    out = usage.get('output_tokens', 0)
+                    weight += inp + 1.25 * write + .1 * read + 5 * out
+                    maximum = max(maximum, inp + write + read)
+                    calls += 1
+        if calls:
+            rows.append((project.name, weight, calls, maximum))
+    total = sum(row[1] for row in rows)
+    print(f'Desde: {since.isoformat()} | pesos: input=1 cache_write=1,25 cache_read=0,1 output=5')
+    print('space\t% estimado\ttokens ponderados\tchamadas\tcontexto máximo')
+    for name, weight, calls, maximum in sorted(rows, key=lambda r: r[1], reverse=True):
+        if args.space and args.space not in name:
+            continue
+        print(f'{name}\t{100 * weight / total if total else 0:.2f}%\t{weight:.1f}\t{calls}\t{maximum}')
+
+
+if __name__ == '__main__':
+    main()
+PY

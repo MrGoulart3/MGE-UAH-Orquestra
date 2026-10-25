@@ -1,0 +1,75 @@
+#!/usr/bin/env bash
+. "$(dirname -- "${BASH_SOURCE[0]}")/orchestra-env.sh"
+export PATH="$ORCHESTRA_BIN:$HOME/.local/bin:$PATH"
+C="$USAGE_CACHE"; O="$ORCHESTRA_STATE"; ST="$O/trava_creditos.state"; LOG="$O/trava_creditos.log"
+AVISO=${TRAVA_AVISO:-75}; PAUSA=${TRAVA_PAUSA:-80}; REGRA="operator: trava em 80%"   # 19/10: era 70/78
+agora=${AGORA:-$(date +%s)}
+h=$(date -d "@$agora" +%-H); if [ -z "$TRAVA_AVISO$TRAVA_PAUSA" ] && { [ "$h" -ge 21 ] || [ "$h" -lt 7 ]; }; then AVISO=90; PAUSA=95; REGRA="noite: parar antes de 100%"; fi
+[ "$(cat "$ORCHESTRA_STATE"/LIVRE_NOITE 2>/dev/null)" = "$(date -d "-8 hours" +%F)" ] && { [ "$h" -ge 21 ] || [ "$h" -lt 7 ]; } && { AVISO=101; PAUSA=101; }
+exec 8>"$O/.trava_creditos.lock"; flock -n 8 || exit 0
+read -r pct reset idade < <(python3 - "$C" "$agora" <<'P'
+import json,sys,time
+try:
+    d=json.load(open(sys.argv[1])); u=d['data']
+    import datetime
+    r=u.get('fiveHourResetsAt')
+    r=datetime.datetime.fromtimestamp(round(datetime.datetime.fromisoformat(r.replace('Z','+00:00')).timestamp()/600)*600).strftime('%FT%H:%M') if r else '-'
+    print(int(u.get('fiveHourPercent') or 0), r, int(float(sys.argv[2])-d.get('timestamp',0)/1000))
+except Exception: print(-1,'-',99999)
+P
+)
+[ "$pct" -lt 0 ] || [ "$idade" -gt 1200 ] && { echo "$(date '+%F %T') medidor indisponível/antigo (idade ${idade}s)" >> "$LOG"; exit 0; }
+inicio=$(python3 - "$C" <<'P'
+import datetime
+import json
+import sys
+
+try:
+    with open(sys.argv[1]) as cache:
+        data = json.load(cache)
+    r = data['data']['fiveHourResetsAt']
+    print(int(datetime.datetime.fromisoformat(r.replace('Z', '+00:00')).timestamp()) - 18000)
+except (OSError, ValueError, KeyError, TypeError):
+    print(0)
+P
+)
+ancora=$(sed -n 's/^ANCORA=//p' "$O/ciclo.conf"); ancora=${ancora:-05:00}
+tol=$(sed -n 's/^TOL=//p' "$O/ciclo.conf"); tol=${tol:-30}
+dia=$(date -d "@$agora" +%F); a=$(date -d "$dia $ancora" +%s); fim=$((inicio+18000))   # operator 20/10: teto de 30% na janela da manhã inteira, até segunda ordem (era até 08:00)
+manha=0
+if [ ! -e "$O/CICLO_LIBERADO" ] && [ "$inicio" -ge "$((a-tol*60-600))" ] && [ "$inicio" -le "$((a+5400))" ] && [ "$agora" -ge "$inicio" ] && [ "$agora" -lt "$fim" ] && [ -z "$TRAVA_AVISO$TRAVA_PAUSA" ]; then
+ PAUSA=${CYCLE_MORNING_CAP:-30}; AVISO=$((PAUSA-5)); REGRA="manhã: teto rígido de 30% nesta janela (operator, até segunda ordem)"; manha=1
+fi
+if read -r tj_a tj_b tj_p < "$O/teto_janela" 2>/dev/null && [ "$inicio" -ge "${tj_a:-0}" ] && [ "$inicio" -le "${tj_b:-0}" ] && [ -z "$TRAVA_AVISO$TRAVA_PAUSA" ]; then
+ AVISO=$((tj_p-5)); PAUSA=$tj_p; REGRA="operator: guardar $((100-tj_p))% desta janela para ele"; manha=1
+fi
+CEL="$O/trava_creditos.celular"; cel=$(cat "$CEL" 2>/dev/null)
+for lim in 90 80; do
+  if [ "$pct" -ge "$lim" ] && ! grep -qx "$reset $lim" <<< "$cel"; then
+    [ -z "$DRYRUN" ] && { "$ORCHESTRA_BIN"/avisar "Creditos em ${pct}%" "Janela de 5 h passou de ${lim}%. Trava atual: aviso ${AVISO}%, pausa ${PAUSA}% (pedidos seus seguem)." >/dev/null 2>&1; printf '%s %s\n%s %s\n' "$reset" "$lim" "$reset" 80 >> "$CEL"; }
+    [ -n "$DRYRUN" ] && echo "DRYRUN celular: ${lim}%"
+    break
+  fi
+done
+falta=$(python3 -c "import json,datetime,sys;r=json.load(open('$C'))['data'].get('fiveHourResetsAt');print(int(datetime.datetime.fromisoformat(r.replace('Z','+00:00')).timestamp()-float('$agora')) if r else 99999)" 2>/dev/null || echo 99999)
+[ "$manha" = 0 ] && [ "$falta" -lt 1800 ] && { echo "$(date '+%F %T') ${pct}%: faltam $((falta/60)) min p/ renovar, sem trava" >> "$LOG"; exit 0; }
+nivel=0; [ "$pct" -ge "$AVISO" ] && nivel=1; [ "$pct" -ge "$PAUSA" ] && nivel=2
+ult=$(cat "$ST" 2>/dev/null); [ "$ult" = "$reset $nivel" ] || [ "$nivel" = 0 ] && { [ "$nivel" = 0 ] && echo "$reset 0" > "$ST"; exit 0; }
+read -r ureset univel <<< "$ult"; [ "$ureset" = "$reset" ] && [ "${univel:-0}" -ge "$nivel" ] && exit 0
+eu=$("$ORCHESTRA_BIN"/pane_coordenador)
+EXCS=$(awk -v r="$reset" '$2==r{printf "%s ",$1}' "$O/trava_excecoes" 2>/dev/null)
+trab=$(herdr agent list 2>/dev/null | python3 -c "
+import json,sys,os
+EXC='$EXCS'.split()
+for a in json.load(sys.stdin)['result']['agents']:
+    if a.get('agent')=='claude' and a.get('agent_status')=='working' and a['pane_id']!='$eu' and a.get('workspace_id') not in os.environ.get('ORCHESTRA_EXCLUDE', '').split(',') and a['pane_id'] not in EXC: print(a['pane_id'])")
+if [ "$nivel" = 1 ]; then
+  msg="TRAVA DE CREDITOS (automatica, sem IA; $REGRA): medidor de 5 h em ${pct}%. Termine o passo atual e NAO comece nada grande (subagentes, lotes longos) ate a janela renovar. Pedidos diretos do operator continuam valendo."
+else
+  msg="TRAVA DE CREDITOS (automatica, sem IA; $REGRA): medidor de 5 h em ${pct}%. PAUSE AGORA o trabalho autonomo, grave o CONTINUIDADE e fique em stand-by ate a janela renovar. So atenda pedido DIRETO do operator (curto)."
+fi
+for p in $trab; do
+  if [ -n "$DRYRUN" ]; then echo "DRYRUN -> $p: $msg"; else NAO_GUARDAR=1 URGENTE=1 "$ORCHESTRA_BIN"/enviar_space "$p" "$msg" 60 >/dev/null 2>&1 && echo "$(date '+%F %T') ${pct}% nivel $nivel -> $p" >> "$LOG"; fi
+done
+[ -z "$DRYRUN" ] && echo "$reset $nivel" > "$ST"
+echo "$(date '+%F %T') ${pct}% nivel $nivel; trabalhando: $(echo $trab)" >> "$LOG"

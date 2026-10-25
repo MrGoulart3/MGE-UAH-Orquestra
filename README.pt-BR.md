@@ -91,3 +91,21 @@ Validação: `python3 -m unittest discover -s orquestra/tests -v`; `python3 orqu
 
 - [MGE-AgentPortal](https://github.com/MrGoulart3/MGE-AgentPortal): acesso autenticado aos workspaces e painel opcional de recursos.
 - [MGE-LocalCompute](https://github.com/MrGoulart3/MGE-LocalCompute): admissão de recursos compartilhados, fila noturna e guarda térmica em degraus.
+
+
+## Como as peças se conectam
+
+O medidor alimenta a trava de créditos e a porta da manhã. Vigias guardam recados até o agente parar. Cálculos prontos pedem vagas por arquivo; apenas concessões confirmadas avisam o agente. Reinícios gravam a passagem de contexto antes. Otimização e prioridade noturnas têm filas separadas. LocalCompute cuida da admissão e proteção dos processos; AgentPortal chama os scripts de sessão e mostra as pastas de entrega configuradas.
+
+| Sistema | Comandos | Guia |
+|---|---|---|
+| Créditos | `medidor`, `trava_creditos`, `trava_excecao` | [Créditos](orquestra/docs/CREDITS.md) |
+| Ciclo matutino | `ciclo`, `ciclo_controle`, `ciclo_porta_hook`, `ancora_reserva`, `ancorar_janela`, `acordar_manha` | [Ciclo](orquestra/docs/CICLO_MATUTINO.md) |
+| Recados | `enviar_space`, `entregar_pendentes`, `pane_coordenador` | [Recados](orquestra/docs/MESSAGES.md) |
+| Vagas em clusters | `pedir_vaga`, `checar_clusters`, `registrar_job` | [Clusters](orquestra/docs/CLUSTERS.md) |
+| Contexto e sessões | `contexto_spaces`, `passagem_space`, `reiniciar_space`, `custo_sessoes`, `fechar_space`, `acordar_space` | [Reinício](orquestra/docs/REINICIO_SPACES.md) |
+| Filas noturnas | `otimizacao_noturna`, `fila_prioridade_noite` | [Otimização](orquestra/docs/OTIMIZACAO_NOTURNA.md) |
+| Arquivos e links | `deliver_file`, `central_add` | [Entregas](orquestra/docs/DELIVERIES.md) |
+| Economia e resumo | `modo_economia`, `resumo_manha` | [Economia](orquestra/docs/ECONOMY_AND_SUMMARY.md) |
+
+Copie `orquestra/config.example.sh` para um arquivo local confiável e exporte seu caminho absoluto em `ORCHESTRA_CONFIG`. Configuração e estado ficam fora do Git. Adicione `orquestra/bin` ao PATH; os comandos precisam do arquivo de ambiente, módulos Python e `ciclo_core.mjs`. Configure coordenador e adaptadores antes de instalar cron/hooks manualmente. O repositório não altera serviços, agendamentos nem jobs remotos. O ping da manhã precisa ser habilitado na configuração. Valide sem rede com `python .github/scripts/check.py`. Os guias por sistema estão em inglês.
