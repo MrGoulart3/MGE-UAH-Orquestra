@@ -4,9 +4,8 @@
 
 - Status: accepted
 - Date: 2026-08-29
-- Decision: use `AAAAMyArchitetures/Universal-Agent-Harness/` and preserve the
-  existing folder name for now.
-- Reason: avoid breaking synchronized paths and preserve existing sources.
+- Decision: use the chosen checkout root, such as `<workspace>/Universal-Agent-Harness/`.
+- Reason: allow any workspace layout while preserving relative links and existing sources.
 
 ## AD-002 — H1 composition
 
@@ -38,14 +37,15 @@
 ## AD-006 — Language
 
 - Status: accepted
-- Decision: configuration keys, schemas, and stable IDs use English;
-  explanatory documentation may use Portuguese. Avoid full bilingual duplication.
+- Decision: configuration keys, schemas, and stable IDs use English.
+  Project explanatory text follows the configurable input language. Public
+  orchestration documentation has equivalent English and Brazilian Portuguese versions.
 
 ## AD-007 — Pilot order
 
 - Status: accepted
-- Decision: test increasing complexity with a simple document, a scientific
-  literature review, and a computational chemistry project.
+- Decision: select pilots of increasing complexity: a simple artifact, an
+  evidence-backed review, and a domain-specific workflow with validation.
 
 ## Pending decisions
 
@@ -90,8 +90,8 @@
 
 - Status: accepted
 - Date: 2026-08-29
-- Decision: extend v0.3.0 with two new archetypes that capture the
-  practitioner patterns the user explicitly relies on:
+- Decision: extend v0.3.0 with two optional archetypes for reusable
+  practitioner patterns:
   (1) `full-sdd-project` for projects needing the full Spec-Driven
   Development lifecycle (Project Charter → Requirements → Architecture →
   Validation → Deliverable), named subagent roles, persistent memory,
@@ -104,9 +104,8 @@
   five new tool contracts. No implementations ship with the
   contracts (AD-010 honored).
 - Reason: v0.3.0 deliberately excluded SDD and the digestion pipeline as
-  defaults. The user works with both as a routine part of complex
-  projects, so the harness must offer them as first-class reference
-  patterns rather than forcing each project to reinvent them. AD-011
+  defaults. Complex projects may benefit from either pattern, so the
+  harness offers them as reference patterns selected by project need. AD-011
   records the promotion to the v0.4.0 catalog while preserving the
   "simplest sufficient harness" principle: every archetype, doc, and
   contract is opt-in.
@@ -189,8 +188,8 @@
 
 - Status: accepted
 - Date: 2026-10-11
-- Context: the author maintains reusable Claude Code skills (Workflow_Digestion,
-  specboard, CalcBoard) that fit specific stages of the UAH flow. Hard-wiring them
+- Context: reusable Claude Code skills (Workflow_Digestion,
+  specboard, CalcBoard) fit specific stages of the UAH flow. Hard-wiring them
   would make every project carry tools it does not need.
 - Decision: describe each tool as a catalog entry (repo, stage, when / when not,
   requirements, trusted rule overlay). A project opts in through

@@ -26,6 +26,7 @@ integrations: {{integrations_list}}   # ferramentas externas do fluxo (lista: py
 policy:
   immutable_paths: []    # nunca alterar (diretório literal protege o conteúdo), ex.: ["data/raw", "refs/pdfs"]
   protected_paths: []    # alterar só com confirmação, ex.: ["manuscrito/final.docx"]
+  plan_gate_paths: []    # caminhos adicionais editáveis antes da aprovação, ex.: ["notes/**"]
   bash_deny: []          # regex ou {id, pattern, reason}
   bash_ask: []
   settings_allow: []     # comandos seguros liberados sem perguntar, ex.: "Bash(pytest:*)", "Bash(orca:*)"

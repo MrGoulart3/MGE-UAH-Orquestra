@@ -112,7 +112,7 @@ agent reading the repo top-down finds it.
 - **Allow UNKNOWN.** Some questions may legitimately be unknown
   at classification time. Record UNKNOWN in the output rather than
   guess.
-- **Stay language-aware.** The user prefers Portuguese for
+- **Stay language-aware.** Use the project's configured language for
   explanatory text; technical IDs and YAML keys stay English.
 - **Adapt the question phrasing to the user's language.** The
   YAML structure of the answer set stays fixed; the natural

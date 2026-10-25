@@ -239,8 +239,8 @@ Before declaring the project complete:
 
 ## Example instantiation
 
-A 6-month cross-domain research project combining plant biology,
-computational chemistry, and a regulatory submission. SDD
+A hypothetical 6-month cross-domain research project combining experimental data,
+computational modelling, and a technical report. SDD
 workflow with one orchestrator, three domain specialists, and
 one independent Red-Team reviewer. Pipeline ingestion via
 caveman + MarkItDown + Graphify + Obsidian. Gates at every

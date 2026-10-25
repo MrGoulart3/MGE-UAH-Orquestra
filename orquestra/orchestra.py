@@ -98,7 +98,9 @@ def priority(requested: str, hour: int) -> str:
     """Forces silent priority during the configured night window."""
     start = int(os.environ.get('ORCHESTRA_NIGHT_START', '21'))
     end = int(os.environ.get('ORCHESTRA_NIGHT_END', '8'))
-    night = start <= hour < end if start < end else hour >= start or hour < end
+    if not (0 <= start <= 23 and 0 <= end <= 23):
+        raise ValueError("Quiet hours must be 0–23 / Horários devem estar entre 0 e 23")
+    night = start != end and (start <= hour < end if start < end else hour >= start or hour < end)
     return 'low' if night else ('high' if requested in ('high', 'alta') else 'default')
 
 

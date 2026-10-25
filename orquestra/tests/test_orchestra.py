@@ -152,5 +152,19 @@ else:
             self.assertEqual('example-model', data['model'])
 
 
+    def test_quiet_hours_are_configurable_and_can_be_disabled(self):
+        with mock.patch.dict(os.environ, {'ORCHESTRA_NIGHT_START': '9', 'ORCHESTRA_NIGHT_END': '17'}):
+            self.assertEqual('low', MODULE.priority('high', 9))
+            self.assertEqual('low', MODULE.priority('high', 16))
+            self.assertEqual('high', MODULE.priority('high', 17))
+        with mock.patch.dict(os.environ, {'ORCHESTRA_NIGHT_START': '0', 'ORCHESTRA_NIGHT_END': '0'}):
+            for hour in range(24):
+                self.assertEqual('high', MODULE.priority('high', hour))
+        with mock.patch.dict(os.environ, {'ORCHESTRA_NIGHT_START': '24'}):
+            with self.assertRaises(ValueError):
+                MODULE.priority('high', 12)
+
+
+
 if __name__ == '__main__':
     unittest.main()

@@ -1,23 +1,22 @@
+# Fictional literature-review example; replace all project choices for your work.
 schema_version: "0.2"
 
 project:
-  id: plant-oxidative-signaling-review
-  title: Molecular modelling of SOD and CAT in plant oxidative signalling
-  owner: Ana
+  id: example-evidence-review
+  title: Example evidence review of research methods
+  owner: Example research team
 
 objective: >-
-  Map the scientific literature connecting plant oxidative signalling,
-  SOD/CAT structure, molecular modelling, docking, and engineering opportunities.
+  Map the literature on a chosen research question, compare available methods,
+  and identify evidence gaps before proposing follow-up work.
 
 domain:
-  - plant-physiology
-  - computational-chemistry
-  - molecular-modelling
+  - literature-review
 
 background: >-
   The project begins as a literature-grounded study and may later produce a
-  computational protocol. The first phase must not overcommit to a simulation
-  stack before the evidence and structures are assessed.
+  reproducible research protocol. The first phase must not commit to an
+  execution stack before the evidence and methods are assessed.
 
 workspace:
   path: ./project
@@ -38,8 +37,8 @@ deliverables:
     acceptance:
       - Every material claim has a source pointer
       - DOI and bibliographic metadata are verified
-  - id: modelling-plan
-    description: Staged modelling and validation plan
+  - id: research-plan
+    description: Staged research and validation plan
     format: [markdown]
     acceptance:
       - Assumptions and decision gates are explicit
@@ -72,8 +71,8 @@ requested_capabilities:
 available_tools: []
 external_actions: []
 human_gates:
-  - Approve modelling methodology before computational execution
+  - Approve research methodology before execution
   - Approve any paid compute or external publication
 special_requirements:
   - Use the minimum sufficient agent topology
-language: pt-BR
+language: en
